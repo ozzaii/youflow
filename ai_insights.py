@@ -26,12 +26,12 @@ genai.configure(api_key=GEMINI_API_KEY)
 class AIInsightsGenerator:
     """Generate insights from YouTrack data using Google's Gemini 2.0 AI model."""
     
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "models/gemini-2.0-flash"):
         """Initialize with model configuration for Gemini 2.0.
         
         Args:
-            model_name: The Gemini model to use. Default is 'gemini-1.5-flash' which supports
-                        large context windows (up to 1M tokens).
+            model_name: The Gemini model to use. Default is 'models/gemini-2.0-flash' which supports
+                        large context windows (up to 1M tokens) and has a knowledge cutoff of August 2024.
         """
         self.model_name = model_name
         # Configure the model with safety settings that allow more analytical content
