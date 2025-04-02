@@ -105,27 +105,19 @@ class YouTrackAPI:
     def get_project_issues(self, fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Get all issues for the project with specified fields using the latest API."""
         if fields is None:
+            # Simplified fields to reduce risk of API errors
             fields = [
                 "id", "idReadable", "summary", "description", "created", "updated", "resolved", 
-                "customFields(id,name,value(id,name,text,localizedName,presentation))", 
-                "tags(id,name,color(id,background,foreground))", 
-                "comments(id,text,created,author(id,login,name,email))",
-                "sprint(id,name,goal,start,finish)", 
-                "assignee(id,login,name,email)",
-                "reporter(id,login,name,email)",
-                "voters(id,login,name,email)",
-                "watchers(id,login,name,email)",
-                "links(id,direction,linkType(id,name,sourceToTarget,targetToSource),issues(id,idReadable,summary))",
-                "subtasks(id,idReadable,summary,resolved)",
-                "parent(id,idReadable,summary)",
-                "timeTracking(id,workItems(id,duration,date,author(id,login,name),text))",
-                "project(id,name,shortName)"
+                "customFields(id,name)", 
+                "assignee(id,name)",
+                "reporter(id,name)",
+                "project(id,name)"
             ]
         
         field_param = ",".join(fields)
         
-        # Improved query to use project ID/shortname instead of full name for better compatibility
-        project_query = f"project: {{{self.project_id}}}"
+        # Try different query format since the API is returning a 400 error
+        project_query = f"project: {self.project_id}"
         
         params = {
             "fields": field_param,
@@ -157,21 +149,13 @@ class YouTrackAPI:
     def get_issue_details(self, issue_id: str, fields: Optional[List[str]] = None) -> Dict[str, Any]:
         """Get detailed information for a specific issue."""
         if fields is None:
+            # Simplified fields to reduce risk of API errors
             fields = [
                 "id", "idReadable", "summary", "description", "created", "updated", "resolved", 
-                "customFields(id,name,value(id,name,text,localizedName,presentation))", 
-                "tags(id,name,color(id,background,foreground))", 
-                "comments(id,text,created,author(id,login,name,email))",
-                "sprint(id,name,goal,start,finish)", 
-                "assignee(id,login,name,email)",
-                "reporter(id,login,name,email)",
-                "voters(id,login,name,email)",
-                "watchers(id,login,name,email)",
-                "links(id,direction,linkType(id,name,sourceToTarget,targetToSource),issues(id,idReadable,summary))",
-                "subtasks(id,idReadable,summary,resolved)",
-                "parent(id,idReadable,summary)",
-                "timeTracking(id,workItems(id,duration,date,author(id,login,name),text))",
-                "project(id,name,shortName)"
+                "customFields(id,name)", 
+                "assignee(id,name)",
+                "reporter(id,name)",
+                "project(id,name)"
             ]
         
         field_param = ",".join(fields)
@@ -187,7 +171,7 @@ class YouTrackAPI:
         """Get the history of changes for a specific issue."""
         endpoint = f"issues/{issue_id}/activities"
         params = {
-            "fields": "id,timestamp,author(id,login,name),category(id),added(id,name,text),removed(id,name,text),target(id,field(id,name,customField(id,name,fieldType(id,name))))",
+            "fields": "id,timestamp,author(id,name),category(id),added(id,name),removed(id,name),target(id,field(id,name))",
             "$top": 100
         }
         
@@ -215,7 +199,7 @@ class YouTrackAPI:
         async def fetch_history(session, issue_id):
             url = f"{self.base_url}/api/issues/{issue_id}/activities"
             params = {
-                "fields": "id,timestamp,author(id,login,name),category(id),added(id,name,text),removed(id,name,text),target(id,field(id,name,customField(id,name,fieldType(id,name))))",
+                "fields": "id,timestamp,author(id,name),category(id),added(id,name),removed(id,name),target(id,field(id,name))",
                 "$top": 100
             }
             headers = self.headers.copy()
