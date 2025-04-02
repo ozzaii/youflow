@@ -267,7 +267,8 @@ class YouTrackAPI:
             url = f"{self.base_url}/api/issues/{issue_id}/activities"
             params = {
                 "fields": "id,timestamp,author(id,name),category(id),added(id,name),removed(id,name),target(id,field(id,name))",
-                "$top": 100
+                "$top": 100,
+                "categories": "CustomFieldCategory,StateCategory,SprintCategory,CommentsCategory"
             }
             headers = self.headers.copy()
             

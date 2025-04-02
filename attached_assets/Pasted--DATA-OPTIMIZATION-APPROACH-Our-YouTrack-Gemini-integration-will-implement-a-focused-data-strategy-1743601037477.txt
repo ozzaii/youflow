@@ -1,0 +1,46 @@
+## DATA OPTIMIZATION APPROACH
+Our YouTrack-Gemini integration will implement a focused data strategy to maximize analytical value while optimizing context usage:
+
+1. OPEN/ACTIVE ISSUES: COMPLETE DATA DUMP
+   - Extract 100% of data for all open/active issues
+   - Include full comment history with timestamps and authors
+   - Capture all activity logs (status changes, field updates, etc.)
+   - Include all assignee history and transitions
+   - Preserve complete relationship data (blockers, subtasks, dependencies)
+   - Maintain all custom field values and their change history
+   - Capture all sprint associations and movements
+   - Include full description content including formatting and attachments
+   - Preserve time tracking data for effort analysis
+
+2. CLOSED ISSUES: STRATEGIC SUMMARY DATA
+   - Basic metadata only (ID, summary, resolution date, final assignee)
+   - Final resolution status and resolution type
+   - Total time spent and time estimates for velocity analysis
+   - Key milestone data for timeline context
+   - Skip detailed comment history and activities for closed items
+   - Exclude fine-grained tracking of past state transitions
+
+## GEMINI CONTEXT OPTIMIZATION
+This approach leverages Gemini 2.0 Flash's 1M token context window efficiently:
+- Approximately 70-80% of context dedicated to active issues where action is possible
+- Remaining 20-30% provides historical context from closed issues
+- Prioritizes actionable information over historical record-keeping
+- Enables deeper pattern recognition on in-progress work
+- Maintains sufficient historical context for trend analysis
+
+## ANALYTICAL BENEFITS
+This focused approach provides several analytical advantages:
+- Concentrates AI attention on issues where insights can drive immediate action
+- Provides comprehensive context for current blockers and challenges
+- Enables detailed workload analysis for active team members
+- Maintains cycle time and throughput metrics from historical data
+- Allows for sprint forecasting based on current velocity and capacity
+- Preserves full communication context for open issues to identify miscommunications
+
+## IMPLEMENTATION CONSIDERATIONS
+When implementing this approach:
+- Use YouTrack query filters to separate open vs. closed issue extraction
+- Apply different field selectors based on issue state
+- Consider time-based windowing for particularly large projects
+- Ensure data consistency by using the same extraction timestamp
+- Log counts of open vs. closed issues for context distribution monitoring

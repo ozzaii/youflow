@@ -20,9 +20,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configure Gemini API - Use the key from Mercedes project
+# Configure Gemini API - Use the key from environment or fallback to project key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyARZyERqMaFInsbRKUA0NxOok77syBNzK8")
 genai.configure(api_key=GEMINI_API_KEY)
+
+# Check if API key is likely valid (non-empty and properly formatted)
+API_KEY_VALID = bool(GEMINI_API_KEY and len(GEMINI_API_KEY) > 20 and GEMINI_API_KEY.startswith("AIza"))
 
 # Define standard response for rate limiting
 RATE_LIMIT_RESPONSE = {
@@ -580,11 +583,15 @@ class AIInsightsGenerator:
         """
         logger.info("Generating daily AI insights report")
         
-        # Check if API key is configured
-        if not GEMINI_API_KEY:
-            logger.warning("Gemini API key not configured, skipping AI insights")
+        # Check if API key is valid and properly configured
+        if not API_KEY_VALID:
+            logger.warning("Invalid or missing Gemini API key - returning standard message")
             return {
-                "error": "Gemini API key not configured. Please set the GEMINI_API_KEY environment variable."
+                "executive_summary": "AI insights unavailable - Gemini API key is missing or invalid.",
+                "key_metrics": "To enable AI-powered insights, please provide a valid Google Gemini API key.",
+                "risks_bottlenecks": "AI analysis requires a valid API key to process project data.",
+                "recommendations": "1. Set the GEMINI_API_KEY environment variable with a valid Google AI Studio key\n2. Restart the application after setting the key",
+                "team_performance": "Team performance metrics require AI analysis which is currently unavailable."
             }
         
         try:
@@ -799,11 +806,13 @@ class AIInsightsGenerator:
         """
         logger.info("Analyzing issue trends with AI")
         
-        # Check if API key is configured
-        if not GEMINI_API_KEY:
-            logger.warning("Gemini API key not configured, skipping trend analysis")
+        # Check if API key is valid and properly configured
+        if not API_KEY_VALID:
+            logger.warning("Invalid or missing Gemini API key - returning standard message")
             return {
-                "error": "Gemini API key not configured. Please set the GEMINI_API_KEY environment variable."
+                "error": "AI-based trend analysis unavailable - Gemini API key is missing or invalid.",
+                "trend_data": [],
+                "analysis": "To enable AI-powered trend analysis, please provide a valid Google Gemini API key."
             }
         
         try:
@@ -913,10 +922,16 @@ class AIInsightsGenerator:
         """
         logger.info("Generating follow-up questions with AI")
         
-        # Check if API key is configured
-        if not GEMINI_API_KEY:
-            logger.warning("Gemini API key not configured, skipping question generation")
-            return ["Gemini API key not configured. Please set the GEMINI_API_KEY environment variable."]
+        # Check if API key is valid and properly configured
+        if not API_KEY_VALID:
+            logger.warning("Invalid or missing Gemini API key - returning standard message")
+            return [
+                "1. AI-powered question generation unavailable - Gemini API key is missing or invalid.",
+                "2. Are any issues at risk of missing their deadlines?",
+                "3. How is team workload distributed among team members?",
+                "4. What was our sprint velocity in the last completed sprint?",
+                "5. Are there any recurring issue types that could indicate systemic problems?"
+            ]
         
         try:
             # Prepare context
