@@ -10,6 +10,7 @@ import aiohttp
 import requests
 from urllib.parse import quote, urlencode
 from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
 
 from config import youtrack_config, app_config
 
@@ -377,10 +378,18 @@ class YouTrackAPI:
                 "extraction_timestamp": time.time()
             }
             
+            # Define a custom JSON serializer for datetime objects
+            def json_serial(obj):
+                """JSON serializer for objects not serializable by default json code"""
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                raise TypeError(f"Type {type(obj)} not serializable")
+            
             # Save to file
             output_path = os.path.join(app_config.data_dir, app_config.issues_file)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
             with open(output_path, 'w') as f:
-                json.dump(project_data, f, indent=2)
+                json.dump(project_data, f, default=json_serial, indent=2)
             
             logger.info(f"Data extraction completed. Saved to {output_path}")
             return project_data

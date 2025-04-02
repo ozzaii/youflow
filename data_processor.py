@@ -313,6 +313,13 @@ class DataProcessor:
     
     def _save_processed_data(self) -> None:
         """Save processed dataframes to a file."""
+        # Define a custom JSON serializer for pandas Timestamp objects
+        def json_serial(obj):
+            """JSON serializer for objects not serializable by default json code"""
+            if isinstance(obj, (pd.Timestamp, datetime)):
+                return obj.isoformat()
+            raise TypeError(f"Type {type(obj)} not serializable")
+        
         processed_data = {
             'issues': self.issues_df.to_dict(orient='records') if self.issues_df is not None else [],
             'custom_fields': self.custom_fields_df.to_dict(orient='records') if self.custom_fields_df is not None else [],
@@ -323,8 +330,9 @@ class DataProcessor:
         }
         
         output_path = os.path.join(app_config.data_dir, app_config.processed_data_file)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'w') as f:
-            json.dump(processed_data, f)
+            json.dump(processed_data, f, default=json_serial)
         
         logger.info(f"Saved processed data to {output_path}")
     
