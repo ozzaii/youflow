@@ -97,6 +97,32 @@ class AIInsightsGenerator:
                     "recently_created": recently_created,
                     "recently_resolved": recently_resolved
                 }
+                
+                # Add additional useful project statistics
+                if 'created' in data_processor.issues_df.columns:
+                    try:
+                        # Calculate average issues created per week over the last 3 months
+                        three_months_ago = datetime.now() - timedelta(days=90)
+                        three_months_timestamp = pd.Timestamp(three_months_ago)
+                        recent_period_issues = data_processor.issues_df[data_processor.issues_df['created'] > three_months_timestamp]
+                        
+                        if not recent_period_issues.empty:
+                            weeks_span = (datetime.now() - three_months_ago).days / 7
+                            issues_per_week = len(recent_period_issues) / max(1, weeks_span)
+                            context["project_stats"]["avg_issues_per_week"] = round(issues_per_week, 2)
+                    except Exception as e:
+                        logger.warning(f"Error calculating weekly issue rate: {str(e)}")
+                
+                # Calculate average resolution time for resolved issues
+                if 'resolved' in data_processor.issues_df.columns and 'created' in data_processor.issues_df.columns:
+                    try:
+                        resolved_issues_df = data_processor.issues_df[data_processor.issues_df['resolved'].notna()]
+                        if not resolved_issues_df.empty:
+                            resolved_issues_df['resolution_time'] = resolved_issues_df['resolved'] - resolved_issues_df['created']
+                            avg_resolution_time = resolved_issues_df['resolution_time'].mean()
+                            context["project_stats"]["avg_resolution_days"] = round(avg_resolution_time.total_seconds() / (3600 * 24), 2)
+                    except Exception as e:
+                        logger.warning(f"Error calculating average resolution time: {str(e)}")
             else:
                 context["project_stats"] = {
                     "total_issues": 0,
@@ -127,10 +153,32 @@ class AIInsightsGenerator:
                 if not status_field.empty:
                     status_counts = status_field['field_value'].value_counts().to_dict()
                     context["status_distribution"] = status_counts
+                    
+                    # Add status breakdown by percentage
+                    total = sum(status_counts.values())
+                    if total > 0:
+                        status_percentage = {status: round(count/total * 100, 2) for status, count in status_counts.items()}
+                        context["status_percentage"] = status_percentage
                 else:
                     context["status_distribution"] = {}
+                    context["status_percentage"] = {}
+                
+                # Extract priority distribution if available
+                priority_field = data_processor.custom_fields_df[data_processor.custom_fields_df['field_name'] == 'Priority']
+                if not priority_field.empty:
+                    priority_counts = priority_field['field_value'].value_counts().to_dict()
+                    context["priority_distribution"] = priority_counts
+                
+                # Extract type distribution if available
+                type_field = data_processor.custom_fields_df[data_processor.custom_fields_df['field_name'] == 'Type']
+                if not type_field.empty:
+                    type_counts = type_field['field_value'].value_counts().to_dict()
+                    context["issue_type_distribution"] = type_counts
             else:
                 context["status_distribution"] = {}
+                context["status_percentage"] = {}
+                context["priority_distribution"] = {}
+                context["issue_type_distribution"] = {}
         except Exception as e:
             logger.error(f"Error preparing status distribution context: {str(e)}", exc_info=True)
             context["status_distribution"] = {"error": str(e)}
@@ -140,11 +188,21 @@ class AIInsightsGenerator:
             assignee_workload = data_processor.get_assignee_workload()
             if not assignee_workload.empty:
                 context["assignee_workload"] = assignee_workload.to_dict(orient='records')
+                
+                # Add team metrics
+                context["team_metrics"] = {
+                    "total_team_members": len(assignee_workload),
+                    "avg_issues_per_member": round(assignee_workload['open_issues'].mean(), 2),
+                    "max_issues_assigned": assignee_workload['open_issues'].max(),
+                    "min_issues_assigned": assignee_workload['open_issues'].min()
+                }
             else:
                 context["assignee_workload"] = []
+                context["team_metrics"] = {}
         except Exception as e:
             logger.error(f"Error preparing assignee workload context: {str(e)}", exc_info=True)
             context["assignee_workload"] = [{"error": str(e)}]
+            context["team_metrics"] = {"error": str(e)}
         
         try:
             # Sprint statistics
@@ -156,6 +214,20 @@ class AIInsightsGenerator:
                         if isinstance(value, (pd.Timestamp, datetime)):
                             sprint_stats[sprint][key] = value.isoformat()
                 context["sprint_statistics"] = sprint_stats
+                
+                # Add additional sprint analytics
+                active_sprints = {name: stats for name, stats in sprint_stats.items() 
+                                 if stats.get('status') == 'active'}
+                completed_sprints = {name: stats for name, stats in sprint_stats.items() 
+                                    if stats.get('status') == 'completed'}
+                
+                if active_sprints:
+                    context["active_sprints_count"] = len(active_sprints)
+                    
+                if completed_sprints:
+                    completion_rates = [stats.get('completion_rate', 0) for stats in completed_sprints.values()]
+                    if completion_rates:
+                        context["avg_sprint_completion_rate"] = round(sum(completion_rates) / len(completion_rates), 2)
             else:
                 context["sprint_statistics"] = {}
         except Exception as e:
@@ -201,13 +273,61 @@ class AIInsightsGenerator:
                         activity_records.append(record)
                     
                     context["recent_activity"] = activity_records
+                    
+                    # Add activity trend analysis
+                    if len(activity_records) > 0:
+                        # Count activities by type
+                        field_types = recent_activity['field_name'].value_counts().to_dict()
+                        context["activity_by_field"] = field_types
+                        
+                        # Most active users
+                        if 'author' in recent_activity.columns:
+                            most_active_users = recent_activity['author'].value_counts().head(5).to_dict()
+                            context["most_active_users"] = most_active_users
                 else:
                     context["recent_activity"] = []
+                    context["activity_by_field"] = {}
+                    context["most_active_users"] = {}
             else:
                 context["recent_activity"] = []
+                context["activity_by_field"] = {}
+                context["most_active_users"] = {}
         except Exception as e:
             logger.error(f"Error preparing recent activity context: {str(e)}", exc_info=True)
             context["recent_activity"] = [{"error": str(e)}]
+            context["activity_by_field"] = {"error": str(e)}
+            context["most_active_users"] = {"error": str(e)}
+        
+        # Add a sample of recent issues (up to 20) for better context
+        try:
+            if data_processor.issues_df is not None and not data_processor.issues_df.empty:
+                if 'created' in data_processor.issues_df.columns:
+                    # Sort by creation date (most recent first)
+                    recent_issues = data_processor.issues_df.sort_values('created', ascending=False).head(20)
+                else:
+                    # If no created date, just take the first 20
+                    recent_issues = data_processor.issues_df.head(20)
+                
+                # Create a simplified version with essential fields
+                issue_samples = []
+                essential_fields = ['id', 'readable_id', 'summary', 'created', 'resolved', 'assignee', 'tags']
+                
+                for _, issue in recent_issues.iterrows():
+                    sample = {}
+                    for field in essential_fields:
+                        if field in issue and not pd.isna(issue[field]):
+                            if isinstance(issue[field], (pd.Timestamp, datetime)):
+                                sample[field] = issue[field].isoformat()
+                            else:
+                                sample[field] = issue[field]
+                    issue_samples.append(sample)
+                
+                context["issue_samples"] = issue_samples
+            else:
+                context["issue_samples"] = []
+        except Exception as e:
+            logger.error(f"Error preparing issue samples: {str(e)}", exc_info=True)
+            context["issue_samples"] = [{"error": str(e)}]
         
         return context
     
