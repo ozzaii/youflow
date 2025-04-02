@@ -352,25 +352,36 @@ elif query_type == "Status Changes":
         # Filter options
         col1, col2 = st.columns(2)
         
+        # Safely handle the case where the dataframe might be empty or missing columns
+        from_options = ['Any']
+        to_options = ['Any']
+        
+        if not status_changes.empty:
+            if 'removed' in status_changes.columns:
+                from_options += sorted(status_changes['removed'].dropna().unique().tolist())
+            
+            if 'added' in status_changes.columns:
+                to_options += sorted(status_changes['added'].dropna().unique().tolist())
+        
         with col1:
             from_status = st.selectbox(
                 "From Status",
-                options=['Any'] + sorted(status_changes['removed'].dropna().unique().tolist())
+                options=from_options
             )
         
         with col2:
             to_status = st.selectbox(
                 "To Status",
-                options=['Any'] + sorted(status_changes['added'].dropna().unique().tolist())
+                options=to_options
             )
         
         if st.button("Run Query"):
             filtered_changes = status_changes.copy()
             
-            if from_status != 'Any':
+            if from_status != 'Any' and 'removed' in filtered_changes.columns:
                 filtered_changes = filtered_changes[filtered_changes['removed'] == from_status]
             
-            if to_status != 'Any':
+            if to_status != 'Any' and 'added' in filtered_changes.columns:
                 filtered_changes = filtered_changes[filtered_changes['added'] == to_status]
             
             # Sort by timestamp (most recent first)
@@ -395,25 +406,35 @@ elif query_type == "Assignee Changes":
             # Filter options
             col1, col2 = st.columns(2)
             
+            # Safely handle the case where the dataframe might be missing columns
+            from_options = ['Any']
+            to_options = ['Any']
+            
+            if 'removed' in assignee_changes.columns:
+                from_options += sorted(assignee_changes['removed'].dropna().unique().tolist())
+            
+            if 'added' in assignee_changes.columns:
+                to_options += sorted(assignee_changes['added'].dropna().unique().tolist())
+            
             with col1:
                 from_assignee = st.selectbox(
                     "From Assignee",
-                    options=['Any'] + sorted(assignee_changes['removed'].dropna().unique().tolist())
+                    options=from_options
                 )
             
             with col2:
                 to_assignee = st.selectbox(
                     "To Assignee",
-                    options=['Any'] + sorted(assignee_changes['added'].dropna().unique().tolist())
+                    options=to_options
                 )
             
             if st.button("Run Query"):
                 filtered_changes = assignee_changes.copy()
                 
-                if from_assignee != 'Any':
+                if from_assignee != 'Any' and 'removed' in filtered_changes.columns:
                     filtered_changes = filtered_changes[filtered_changes['removed'] == from_assignee]
                 
-                if to_assignee != 'Any':
+                if to_assignee != 'Any' and 'added' in filtered_changes.columns:
                     filtered_changes = filtered_changes[filtered_changes['added'] == to_assignee]
                 
                 # Sort by timestamp (most recent first)

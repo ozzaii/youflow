@@ -112,7 +112,16 @@ class YouTrackAPI:
             optimize_data: If True, use the optimized data strategy that retrieves more data for
                            open issues and less for closed issues to optimize context usage
         """
-        # Define base fields for all issues (used for closed issues)
+        # Define minimal fields for closed/resolved issues to optimize token usage
+        closed_issue_fields = [
+            "id", "idReadable", "summary", "created", "updated", "resolved", 
+            "assignee(id,name)",  # Minimal assignee info for distribution analysis
+            "project(id)",  # Just project ID since we know which project we're working with
+            "customFields(id,name,value(name))",  # Basic custom fields for status/priority
+            "timeTracking(spentTime)"  # Total time spent for velocity analysis
+        ]
+        
+        # Define base fields for all issues (used when optimization is disabled)
         base_fields = [
             "id", "idReadable", "summary", "created", "updated", "resolved", 
             "assignee(id,name,login)",
@@ -159,11 +168,11 @@ class YouTrackAPI:
             open_issues = self._get_issues_by_query(open_issues_query, ",".join(open_fields))
             logger.info(f"Found {len(open_issues)} open issues with full data")
             
-            # Then, get all closed issues with limited data
-            logger.info("Fetching closed issues with summary data only...")
+            # Then, get all closed issues with minimal data to optimize token usage
+            logger.info("Fetching closed issues with minimal data...")
             closed_issues_query = "project: EISMMABSW (State: Resolved OR State: Closed)"
-            closed_issues = self._get_issues_by_query(closed_issues_query, ",".join(base_fields))
-            logger.info(f"Found {len(closed_issues)} closed issues with summary data")
+            closed_issues = self._get_issues_by_query(closed_issues_query, ",".join(closed_issue_fields))
+            logger.info(f"Found {len(closed_issues)} closed issues with minimal data")
             
             # Combine both sets of issues
             all_issues = open_issues + closed_issues
@@ -428,14 +437,30 @@ class YouTrackAPI:
             
             logger.info(f"Split issues into {len(open_issues)} open and {len(closed_issues)} closed issues")
             
-            # Get issue IDs - prioritize getting history for open issues to optimize API usage
-            open_issue_ids = [issue["id"] for issue in open_issues]
+            # Get histories only for active issues, focusing on recent ones first
+            # This optimizes data size significantly by excluding closed issue histories
+            history_limit = 50  # Only get history for the most recent active issues to reduce data size
             
-            # Get histories for open issues only (to optimize API calls and context size)
-            # Closed issues have less benefit from detailed history
-            if open_issue_ids:
-                issue_histories = asyncio.run(self.get_all_issue_histories_async(open_issue_ids))
-                logger.info(f"Retrieved history for {len(issue_histories)} open issues")
+            # Sort open issues by created date (newest first)
+            open_issues_sorted = sorted(
+                open_issues, 
+                key=lambda x: x.get('updated', x.get('created', '1970-01-01')), 
+                reverse=True
+            )
+            
+            # Only get histories for limited number of active issues
+            limited_issue_ids = []
+            for issue in open_issues_sorted[:history_limit]:
+                limited_issue_ids.append(issue["id"])
+            
+            # Log the optimization
+            if len(open_issues) > history_limit:
+                logger.info(f"Optimizing: Getting history for {history_limit} of {len(open_issues)} open issues")
+            
+            # Get histories for prioritized issues only
+            if limited_issue_ids:
+                issue_histories = asyncio.run(self.get_all_issue_histories_async(limited_issue_ids))
+                logger.info(f"Retrieved history for {len(issue_histories)} active issues")
             else:
                 issue_histories = {}
             

@@ -56,6 +56,85 @@ class AIInsightsGenerator:
         }
         self.model = genai.GenerativeModel(model_name, safety_settings=safety_settings)
         
+    def _summarize_closed_issues(self, data_processor) -> Dict[str, Any]:
+        """
+        Generate a concise summary of closed/resolved issues to optimize token usage.
+        
+        Args:
+            data_processor: DataProcessor instance with loaded data
+            
+        Returns:
+            Dictionary with aggregated data about closed issues
+        """
+        logger.info("Generating summary for closed issues...")
+        summary = {}
+        
+        try:
+            if data_processor.issues_df is not None and not data_processor.issues_df.empty:
+                # Get resolved/closed issues
+                resolved_issues = data_processor.issues_df[data_processor.issues_df['resolved'].notna()]
+                
+                if not resolved_issues.empty:
+                    # Get resolution time statistics
+                    if 'created' in resolved_issues.columns and 'resolved' in resolved_issues.columns:
+                        resolved_issues['resolution_time'] = resolved_issues['resolved'] - resolved_issues['created']
+                        avg_days = resolved_issues['resolution_time'].mean().total_seconds() / (24 * 3600)
+                        median_days = resolved_issues['resolution_time'].median().total_seconds() / (24 * 3600)
+                        max_days = resolved_issues['resolution_time'].max().total_seconds() / (24 * 3600)
+                        min_days = resolved_issues['resolution_time'].min().total_seconds() / (24 * 3600)
+                        
+                        summary['resolution_stats'] = {
+                            'count': len(resolved_issues),
+                            'avg_days': round(avg_days, 2),
+                            'median_days': round(median_days, 2),
+                            'max_days': round(max_days, 2),
+                            'min_days': round(min_days, 2)
+                        }
+                    
+                    # Monthly resolution counts
+                    if 'resolved' in resolved_issues.columns:
+                        # Group by month and count
+                        resolved_issues['month'] = resolved_issues['resolved'].dt.strftime('%Y-%m')
+                        monthly_counts = resolved_issues.groupby('month').size().to_dict()
+                        
+                        # Get the last 6 months of data
+                        sorted_months = sorted(monthly_counts.keys())
+                        recent_months = sorted_months[-6:] if len(sorted_months) > 6 else sorted_months
+                        
+                        summary['monthly_resolutions'] = {month: monthly_counts[month] for month in recent_months}
+                    
+                    # Status distribution
+                    if (data_processor.custom_fields_df is not None and 
+                        not data_processor.custom_fields_df.empty):
+                        
+                        # Get only the closed issues' custom fields
+                        closed_issue_ids = resolved_issues['id'].tolist()
+                        closed_custom_fields = data_processor.custom_fields_df[
+                            data_processor.custom_fields_df['issue_id'].isin(closed_issue_ids)
+                        ]
+                        
+                        # Status distribution for closed issues
+                        if 'field_name' in closed_custom_fields.columns and 'field_value' in closed_custom_fields.columns:
+                            status_field = closed_custom_fields[closed_custom_fields['field_name'] == 'State']
+                            if not status_field.empty:
+                                summary['status_counts'] = status_field['field_value'].value_counts().to_dict()
+                            
+                            # Priority distribution for closed issues
+                            priority_field = closed_custom_fields[closed_custom_fields['field_name'] == 'Priority']
+                            if not priority_field.empty:
+                                summary['priority_counts'] = priority_field['field_value'].value_counts().to_dict()
+                                
+                    # Assignee distribution for closed issues
+                    if 'assignee' in resolved_issues.columns:
+                        assignee_counts = resolved_issues['assignee'].value_counts().head(10).to_dict()
+                        summary['top_assignees'] = assignee_counts
+        
+        except Exception as e:
+            logger.error(f"Error generating closed issues summary: {str(e)}", exc_info=True)
+            summary['error'] = str(e)
+        
+        return summary
+        
     def _prepare_data_context(self, data_processor) -> Dict[str, Any]:
         """
         Prepare data context for the AI model.
@@ -595,10 +674,14 @@ class AIInsightsGenerator:
             }
         
         try:
-            # Prepare data context
+            # Prepare data context for active issues
             context = self._prepare_data_context(data_processor)
             
-            # Create prompt
+            # Add summarized data for closed issues
+            closed_issues_summary = self._summarize_closed_issues(data_processor)
+            context["closed_issues_summary"] = closed_issues_summary
+            
+            # Create prompt with data optimization context
             system_prompt = """
             You are an expert project analyst working with YouTrack data for the Mercedes "MQ EIS/KG BSW" project.
             Your task is to analyze the provided project data and generate actionable insights.
@@ -607,8 +690,9 @@ class AIInsightsGenerator:
             Important Context: 
             - The data has been optimized to provide comprehensive details on all OPEN issues while providing summary information for CLOSED issues.
             - Open issues include full comment history, status transitions, and detailed activity logs.
-            - Closed issues include basic metadata, final status, and time tracking totals.
+            - Closed issues are summarized with resolution statistics, trends, and aggregated metrics to avoid token overload.
             - Base your analysis primarily on currently open and active issues where action is still possible.
+            - Reference the closed_issues_summary section for historical context and trend analysis across resolved issues.
             - Use closed issue data for trend analysis and identifying historical patterns.
             
             Structure your response in the following sections:
