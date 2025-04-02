@@ -1,0 +1,41 @@
+## CORE SYSTEM ARCHITECTURE
+We're building a daily reporting system that extracts comprehensive YouTrack data from the "MQ EIS/KG BSW (Mercedes)" project and uses Gemini 2.0 Flash to transform raw project data into high-value insights.
+
+## GEMINI 2.0 FLASH INTEGRATION
+- We'll leverage Gemini 2.0 Flash's 1M token context window to process complete project datasets
+- Entire issue histories, comments, status changes, and relationships will be included in context
+- This allows for deeper pattern recognition across the full project timeline
+- API integration will be implemented with appropriate rate limiting and error handling
+
+## DAILY INSIGHTS FOCUS
+The system will generate a "Daily Project Pulse" that highlights:
+- New issues created and their potential impact
+- Status transitions and milestone achievements
+- Blocked items and dependencies requiring attention
+- Deviations from expected velocity or patterns
+- Resource allocation changes and implications
+- Approaching deadlines and completion forecasts
+
+## TARGET AUDIENCE: PROJECT LEADS
+- Reports assume deep familiarity with project structure and terminology
+- Content focuses on exceptions, changes, and actionable insights
+- Technical details are included without unnecessary explanation
+- Emphasis on "what's changed since yesterday" rather than static status
+- Insights should enable immediate action or decision-making
+
+## DATA TRANSFORMATION APPROACH
+Raw YouTrack data → Structured Analysis → Actionable Insights:
+1. Extract complete issue data including metadata and relationships
+2. Process temporal patterns (velocity changes, timing anomalies)
+3. Identify blocking relationships and critical path impacts
+4. Analyze resource allocation patterns and workload distribution
+5. Compare current metrics against historical baselines
+6. Generate natural language insights highlighting meaningful changes
+
+## OUTPUT REQUIREMENTS
+- Daily report sent automatically at 8:00 AM
+- Concise executive summary (3-5 bullet points of critical insights)
+- Sectioned report with drill-down capabilities
+- Visual indicators for priority items (RAG status markers)
+- Ability to generate ad-hoc deeper analysis on specific areas
+- Both email delivery and dashboard presentation

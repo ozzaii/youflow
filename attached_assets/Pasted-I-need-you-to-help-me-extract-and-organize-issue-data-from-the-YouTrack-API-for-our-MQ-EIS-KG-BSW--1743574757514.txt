@@ -1,0 +1,43 @@
+I need you to help me extract and organize issue data from the YouTrack API for our "MQ EIS/KG BSW (Mercedes)" project. This is Phase 1 of our AI integration project, focusing on comprehensive data extraction.
+
+## OBJECTIVE
+Create a Python script that connects to our YouTrack instance, authenticates properly, and extracts ALL issue-related data for the "MQ EIS/KG BSW (Mercedes)" project, with special focus on assignees, status changes, and custom fields.
+
+## AUTHENTICATION DETAILS
+- YouTrack Instance: [URL TO YOUR YOUTRACK INSTANCE]
+- Authentication Method: [SPECIFY: Permanent Token/OAuth/Basic Auth]
+- [If you have a token or credentials stored in environment variables, mention how they're configured]
+
+## DATA REQUIREMENTS
+Extract the following information for EACH issue:
+1. Issue ID and summary
+2. Current status and all historical status changes with timestamps
+3. Assignee(s) - current and historical
+4. Created date, resolved date (if applicable)
+5. All comments with author and timestamp
+6. Sprint information (if available)
+7. All custom fields and their values
+8. All tags/labels
+9. All relationships with other issues (dependencies, subtasks, etc.)
+10. Time tracking information (if available)
+
+## OUTPUT FORMAT
+Structure the extracted data as a JSON file with the following schema:
+- Issues as the top-level array
+- Each issue should contain nested objects for status history, comments, etc.
+- Maintain all relationships between issues
+- Include proper error handling and logging
+
+## SPECIFIC CHALLENGES
+- The YouTrack API can be inconsistent - implement robust error handling and retry logic
+- Some custom fields may have complex structures - ensure complete extraction
+- Rate limiting might be an issue - implement appropriate throttling
+
+## CODE REQUIREMENTS
+- Use modern Python (3.9+)
+- Implement proper error handling, logging, and status updates
+- Use async where appropriate for performance
+- Include comprehensive documentation
+- Structure the code for maintainability and future extensions
+
+Let me know if you need any clarification or additional details to complete this task.
