@@ -56,6 +56,35 @@ class AIInsightsGenerator:
         }
         self.model = genai.GenerativeModel(model_name, safety_settings=safety_settings)
         
+    def _convert_numpy_types(self, data):
+        """
+        Convert numpy types in a dict to standard Python types for JSON serialization.
+        
+        Args:
+            data: Dictionary possibly containing NumPy values
+            
+        Returns:
+            Dictionary with NumPy types converted to Python native types
+        """
+        if not isinstance(data, dict):
+            return data
+            
+        converted_data = {}
+        for key, value in data.items():
+            if isinstance(value, dict):
+                converted_data[key] = self._convert_numpy_types(value)
+            elif isinstance(value, (np.integer, np.int64)):
+                converted_data[key] = int(value)
+            elif isinstance(value, (np.floating, np.float64)):
+                converted_data[key] = float(value)
+            elif isinstance(value, np.bool_):
+                converted_data[key] = bool(value)
+            elif isinstance(value, np.ndarray):
+                converted_data[key] = value.tolist()
+            else:
+                converted_data[key] = value
+        return converted_data
+        
     def _summarize_closed_issues(self, data_processor) -> Dict[str, Any]:
         """
         Generate a concise summary of closed/resolved issues to optimize token usage.
@@ -727,20 +756,28 @@ class AIInsightsGenerator:
                     return obj.isoformat()
                 raise TypeError(f"Type {type(obj)} not serializable")
 
+            # Convert context data for serialization using our class method
+            context_copy = self._convert_numpy_types(context)
+            
             # Format the context for the prompt
             user_prompt = f"""
             Here is the current project data (as of {datetime.now().strftime('%Y-%m-%d')}):
             
-            {json.dumps(context, indent=2, default=json_serial)}
+            {json.dumps(context_copy, indent=2, default=json_serial)}
             
             Analyze this data and provide insights based on the structure described in the system prompt.
             """
             
             # Log the full context for debugging
-            logger.info(f"Sending context to Gemini API with {len(json.dumps(context))} characters")
-            with open("debug_gemini_context.json", "w") as f:
-                json.dump(context, f, default=json_serial, indent=2)
-            logger.info("Saved Gemini context to debug_gemini_context.json")
+            try:
+                json_data = json.dumps(context_copy, default=json_serial)
+                logger.info(f"Sending context to Gemini API with {len(json_data)} characters")
+                with open("debug_gemini_context.json", "w") as f:
+                    f.write(json_data)
+                logger.info("Saved Gemini context to debug_gemini_context.json")
+            except Exception as e:
+                logger.error(f"Error serializing context for logging: {str(e)}")
+                # Don't block the main functionality if logging fails
             
             # Generate insights
             response = self.model.generate_content(
@@ -942,17 +979,29 @@ class AIInsightsGenerator:
             else:
                 trend_data = weekly_created.to_dict(orient='records')
             
-            # Create prompt with proper JSON serialization
+            # Convert data for serialization
+            trend_data_converted = []
+            for item in trend_data:
+                # Handle NumPy types in the trend data (which is a list of dicts)
+                converted_item = {}
+                for k, v in item.items():
+                    if isinstance(v, (np.integer, np.int64)):
+                        converted_item[k] = int(v)
+                    elif isinstance(v, (np.floating, np.float64)):
+                        converted_item[k] = float(v)
+                    elif isinstance(v, np.bool_):
+                        converted_item[k] = bool(v)
+                    elif isinstance(v, np.ndarray):
+                        converted_item[k] = v.tolist()
+                    elif isinstance(v, (pd.Timestamp, datetime)):
+                        converted_item[k] = v.isoformat()
+                    else:
+                        converted_item[k] = v
+                trend_data_converted.append(converted_item)
+                
+            # Create prompt with JSON serialization
             def json_serial(obj):
                 """JSON serializer for objects not serializable by default json code"""
-                if isinstance(obj, (np.integer, np.int64)):
-                    return int(obj)
-                if isinstance(obj, (np.floating, np.float64)):
-                    return float(obj)
-                if isinstance(obj, np.bool_):
-                    return bool(obj)
-                if isinstance(obj, np.ndarray):
-                    return obj.tolist()
                 if isinstance(obj, (pd.Timestamp, datetime)):
                     return obj.isoformat()
                 return str(obj)
@@ -960,7 +1009,7 @@ class AIInsightsGenerator:
             prompt = f"""
             Analyze the following weekly issue creation and resolution data for the Mercedes project:
             
-            {json.dumps(trend_data, indent=2, default=json_serial)}
+            {json.dumps(trend_data_converted, indent=2, default=json_serial)}
             
             Please provide:
             1. An analysis of overall trends in issue creation and resolution
@@ -1035,17 +1084,12 @@ class AIInsightsGenerator:
             # Prepare context
             context = self._prepare_data_context(data_processor)
             
-            # Custom JSON serializer that handles numpy types
+            # Convert context for serialization
+            context_copy = self._convert_numpy_types(context)
+            
+            # Handle any remaining non-serializable types
             def json_serial(obj):
                 """JSON serializer for objects not serializable by default json code"""
-                if isinstance(obj, (np.integer, np.int64)):
-                    return int(obj)
-                if isinstance(obj, (np.floating, np.float64)):
-                    return float(obj)
-                if isinstance(obj, np.bool_):
-                    return bool(obj)
-                if isinstance(obj, np.ndarray):
-                    return obj.tolist()
                 if isinstance(obj, (pd.Timestamp, datetime)):
                     return obj.isoformat()
                 return str(obj)
@@ -1053,7 +1097,7 @@ class AIInsightsGenerator:
             prompt = f"""
             Based on the following YouTrack project data:
             
-            {json.dumps(context, indent=2, default=json_serial)}
+            {json.dumps(context_copy, indent=2, default=json_serial)}
             
             Generate 5 important follow-up questions that a project manager should ask to better understand the current project status and potential issues.
             
