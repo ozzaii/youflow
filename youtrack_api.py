@@ -116,8 +116,9 @@ class YouTrackAPI:
         
         field_param = ",".join(fields)
         
-        # Try different query format since the API is returning a 400 error
-        project_query = f"project: {self.project_id}"
+        # According to YouTrack REST API documentation
+        # For project IDs, we should use project ID exactly as is without quotes
+        project_query = f"project: {{{self.project_id}}}"
         
         params = {
             "fields": field_param,
