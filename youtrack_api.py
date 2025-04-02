@@ -284,38 +284,54 @@ class YouTrackAPI:
             all_activities = []
             skip = 0
             
-            while True:
-                params_with_skip = params.copy()
-                params_with_skip["$skip"] = skip
-                
-                for attempt in range(youtrack_config.max_retries):
-                    try:
-                        async with session.get(url, headers=headers, params=params_with_skip, 
-                                              timeout=youtrack_config.timeout) as response:
-                            if response.status == 200:
-                                chunk = await response.json()
-                                all_activities.extend(chunk)
-                                
-                                if len(chunk) < 100:
-                                    return issue_id, all_activities
+            try:
+                while True:
+                    params_with_skip = params.copy()
+                    params_with_skip["$skip"] = skip
+                    
+                    for attempt in range(youtrack_config.max_retries):
+                        try:
+                            async with session.get(url, headers=headers, params=params_with_skip, 
+                                                timeout=youtrack_config.timeout) as response:
+                                if response.status == 200:
+                                    chunk = await response.json()
+                                    all_activities.extend(chunk)
                                     
-                                skip += 100
-                                break
-                            elif response.status == 429:
-                                retry_after = int(response.headers.get('Retry-After', youtrack_config.retry_delay))
-                                logger.warning(f"Rate limited for issue {issue_id}. Waiting for {retry_after} seconds.")
-                                await asyncio.sleep(retry_after)
-                            else:
-                                text = await response.text()
-                                logger.error(f"API request failed for issue {issue_id}: {response.status} - {text}")
-                                if attempt == youtrack_config.max_retries - 1:
+                                    if len(chunk) < 100:
+                                        return issue_id, all_activities
+                                        
+                                    skip += 100
+                                    break
+                                elif response.status == 429:
+                                    retry_after = int(response.headers.get('Retry-After', youtrack_config.retry_delay))
+                                    logger.warning(f"Rate limited for issue {issue_id}. Waiting for {retry_after} seconds.")
+                                    await asyncio.sleep(retry_after)
+                                elif response.status == 404:
+                                    # Issue might have been deleted or is not accessible
+                                    logger.warning(f"Issue {issue_id} not found or not accessible")
                                     return issue_id, []
-                                await asyncio.sleep(youtrack_config.retry_delay)
-                    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                        logger.error(f"Request failed for issue {issue_id} (attempt {attempt+1}/{youtrack_config.max_retries}): {str(e)}")
-                        if attempt == youtrack_config.max_retries - 1:
-                            return issue_id, []
-                        await asyncio.sleep(youtrack_config.retry_delay)
+                                elif response.status >= 500:
+                                    # Server error - retry
+                                    text = await response.text()
+                                    logger.error(f"Server error for issue {issue_id}: {response.status} - {text}")
+                                    if attempt == youtrack_config.max_retries - 1:
+                                        return issue_id, []
+                                    await asyncio.sleep(youtrack_config.retry_delay * (attempt + 1))  # Exponential backoff
+                                else:
+                                    text = await response.text()
+                                    logger.error(f"API request failed for issue {issue_id}: {response.status} - {text}")
+                                    if attempt == youtrack_config.max_retries - 1:
+                                        return issue_id, []
+                                    await asyncio.sleep(youtrack_config.retry_delay)
+                        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                            logger.error(f"Request failed for issue {issue_id} (attempt {attempt+1}/{youtrack_config.max_retries}): {str(e)}")
+                            if attempt == youtrack_config.max_retries - 1:
+                                return issue_id, []
+                            await asyncio.sleep(youtrack_config.retry_delay * (attempt + 1))  # Exponential backoff
+            except Exception as e:
+                # Catch any unexpected errors to avoid breaking the entire process
+                logger.error(f"Unexpected error fetching history for issue {issue_id}: {str(e)}")
+                return issue_id, []
             
             return issue_id, all_activities
         
@@ -458,11 +474,14 @@ class YouTrackAPI:
                 logger.info(f"Optimizing: Getting history for {history_limit} of {len(open_issues)} open issues")
             
             # Get histories for prioritized issues only
+            issue_histories = {}
             if limited_issue_ids:
-                issue_histories = asyncio.run(self.get_all_issue_histories_async(limited_issue_ids))
-                logger.info(f"Retrieved history for {len(issue_histories)} active issues")
-            else:
-                issue_histories = {}
+                try:
+                    issue_histories = asyncio.run(self.get_all_issue_histories_async(limited_issue_ids))
+                    logger.info(f"Retrieved history for {len(issue_histories)} active issues")
+                except Exception as e:
+                    logger.error(f"Error fetching issue histories: {str(e)}")
+                    logger.info("Continuing with extraction despite history fetching error")
             
             # Get custom field values for key fields
             custom_field_bundles = {

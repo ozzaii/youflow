@@ -43,6 +43,12 @@ if 'last_refresh' not in st.session_state:
 if 'ai_insights_generator' not in st.session_state:
     st.session_state.ai_insights_generator = AIInsightsGenerator()
     
+# Check if Gemini API key is present
+if 'gemini_api_key_checked' not in st.session_state:
+    from ai_insights import API_KEY_VALID
+    st.session_state.gemini_api_key_checked = True
+    st.session_state.gemini_api_key_valid = API_KEY_VALID
+    
 # Cache for AI-generated insights
 if 'daily_insights' not in st.session_state:
     st.session_state.daily_insights = None
@@ -191,32 +197,70 @@ def generate_ai_insights():
     if st.session_state.daily_insights is None:
         with st.spinner("Generating AI insights..."):
             try:
-                st.session_state.daily_insights = ai_generator.generate_daily_report(data_processor)
+                if not st.session_state.gemini_api_key_valid:
+                    st.session_state.daily_insights = {
+                        "error": "Google Gemini API key is missing or invalid. Please provide a valid API key to enable AI insights."
+                    }
+                else:
+                    st.session_state.daily_insights = ai_generator.generate_daily_report(data_processor)
             except Exception as e:
                 logger.error(f"Error generating daily insights: {str(e)}", exc_info=True)
+                error_message = str(e)
+                
+                # Check for API key related errors
+                if "api key" in error_message.lower() or "authentication" in error_message.lower():
+                    error_message = "Invalid Google Gemini API key. Please check your credentials."
+                    # Mark API key as invalid
+                    st.session_state.gemini_api_key_valid = False
+                    
                 st.session_state.daily_insights = {
-                    "error": f"Failed to generate AI insights: {str(e)}"
+                    "error": f"Failed to generate AI insights: {error_message}"
                 }
     
     # Trend analysis
     if st.session_state.trend_analysis is None:
         with st.spinner("Analyzing issue trends..."):
             try:
-                st.session_state.trend_analysis = ai_generator.analyze_issue_trends(data_processor)
+                if not st.session_state.gemini_api_key_valid:
+                    st.session_state.trend_analysis = {
+                        "error": "Google Gemini API key is missing or invalid. Please provide a valid API key to enable AI insights."
+                    }
+                else:
+                    st.session_state.trend_analysis = ai_generator.analyze_issue_trends(data_processor)
             except Exception as e:
                 logger.error(f"Error analyzing trends: {str(e)}", exc_info=True)
+                error_message = str(e)
+                
+                # Check for API key related errors
+                if "api key" in error_message.lower() or "authentication" in error_message.lower():
+                    error_message = "Invalid Google Gemini API key. Please check your credentials."
+                    # Mark API key as invalid
+                    st.session_state.gemini_api_key_valid = False
+                    
                 st.session_state.trend_analysis = {
-                    "error": f"Failed to analyze trends: {str(e)}"
+                    "error": f"Failed to analyze trends: {error_message}"
                 }
     
     # Follow-up questions
     if st.session_state.followup_questions is None:
         with st.spinner("Generating follow-up questions..."):
             try:
-                st.session_state.followup_questions = ai_generator.generate_followup_questions(data_processor)
+                if not st.session_state.gemini_api_key_valid:
+                    st.session_state.followup_questions = [
+                        "What are the current blockers in the project?",
+                        "Which team members need additional support?",
+                        "Are there any risks that need to be addressed immediately?"
+                    ]
+                else:
+                    st.session_state.followup_questions = ai_generator.generate_followup_questions(data_processor)
             except Exception as e:
                 logger.error(f"Error generating follow-up questions: {str(e)}", exc_info=True)
-                st.session_state.followup_questions = []
+                # Provide fallback questions if AI generation fails
+                st.session_state.followup_questions = [
+                    "What are the current blockers in the project?",
+                    "Which team members need additional support?",
+                    "Are there any risks that need to be addressed immediately?"
+                ]
 
 def display_ai_insights():
     """Display AI-powered insights."""
@@ -354,6 +398,48 @@ def main():
     # Sidebar
     st.sidebar.title("YouTrack Analytics")
     st.sidebar.markdown("---")
+    
+    # Check if Gemini API key is valid and warn if not
+    if not st.session_state.gemini_api_key_valid:
+        st.sidebar.warning("⚠️ **Gemini API Key Missing/Invalid**")
+        
+        with st.sidebar.expander("Enter Gemini API Key", expanded=False):
+            api_key_input = st.text_input("Gemini API Key", value="", 
+                                        type="password", 
+                                        help="Get a key from Google AI Studio")
+            
+            if st.button("Save API Key"):
+                if api_key_input and len(api_key_input) > 20:
+                    # Set environment variable (temporarily for this session)
+                    os.environ["GEMINI_API_KEY"] = api_key_input
+                    
+                    # Reconfigure Gemini
+                    from ai_insights import genai
+                    genai.configure(api_key=api_key_input)
+                    
+                    # Update API key validity check
+                    from ai_insights import API_KEY_VALID
+                    st.session_state.gemini_api_key_valid = API_KEY_VALID
+                    
+                    # Clear cached insights to regenerate them with the new key
+                    st.session_state.daily_insights = None
+                    st.session_state.trend_analysis = None
+                    st.session_state.followup_questions = None
+                    
+                    st.success("API key set for this session!")
+                    st.rerun()
+                else:
+                    st.error("Please enter a valid API key")
+        
+        st.sidebar.info(
+            "AI-powered insights will be limited. To enable full AI features, "
+            "please set a valid Google AI Studio key above or in the GEMINI_API_KEY environment variable."
+        )
+        
+        if st.sidebar.button("Check API Key"):
+            from ai_insights import API_KEY_VALID
+            st.session_state.gemini_api_key_valid = API_KEY_VALID
+            st.rerun()
     
     # Add refresh button in sidebar
     if st.sidebar.button("Refresh Data"):

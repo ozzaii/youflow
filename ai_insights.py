@@ -20,11 +20,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configure Gemini API - Use the key from environment or fallback to project key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyARZyERqMaFInsbRKUA0NxOok77syBNzK8")
-genai.configure(api_key=GEMINI_API_KEY)
+# Configure Gemini API - Get key from environment
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
-# Check if API key is likely valid (non-empty and properly formatted)
+# Check if API key is available and likely valid
 API_KEY_VALID = bool(GEMINI_API_KEY and len(GEMINI_API_KEY) > 20 and GEMINI_API_KEY.startswith("AIza"))
 
 # Define standard response for rate limiting
