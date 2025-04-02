@@ -238,7 +238,11 @@ class DataProcessor:
             if self.raw_data is None and not self.load_data():
                 return False
             
-            # Extract issues
+            # Extract issues from the raw data (handling case where raw_data might be None)
+            if self.raw_data is None:
+                logger.error("Raw data is None. Unable to process data.")
+                return False
+                
             issues = self.raw_data.get('issues', [])
             issue_histories = self.raw_data.get('issue_histories', {})
             

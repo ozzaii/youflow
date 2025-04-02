@@ -103,28 +103,93 @@ class YouTrackAPI:
             endpoint = f"admin/projects/{encoded_project_id}"
             return self._make_request(endpoint)
     
-    def get_project_issues(self, fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        """Get all issues for the project with specified fields using the latest API."""
-        if fields is None:
-            # Simplified fields to reduce risk of API errors
-            fields = [
-                "id", "idReadable", "summary", "description", "created", "updated", "resolved", 
-                "customFields(id,name)", 
-                "assignee(id,name)",
-                "reporter(id,name)",
-                "project(id,name)"
+    def get_project_issues(self, fields: Optional[List[str]] = None, optimize_data: bool = True) -> List[Dict[str, Any]]:
+        """
+        Get all issues for the project with specified fields using the latest API.
+        
+        Args:
+            fields: Optional list of fields to request for all issues
+            optimize_data: If True, use the optimized data strategy that retrieves more data for
+                           open issues and less for closed issues to optimize context usage
+        """
+        # Define base fields for all issues (used for closed issues)
+        base_fields = [
+            "id", "idReadable", "summary", "created", "updated", "resolved", 
+            "assignee(id,name,login)",
+            "reporter(id,name)",
+            "project(id,name,shortName)",
+            "customFields(id,name,value(name))",  # Basic custom fields for status/priority
+            "timeTracking(spentTime)",  # Total time spent for velocity analysis
+            "tags(id,name)"  # Tags for categorization
+        ]
+        
+        # Define detailed fields for open/active issues (comprehensive data)
+        detail_fields = [
+            "description",  # Full description with formatting
+            "customFields(id,name,value(id,name,login,text,localizedName,presentation))",  # All custom field details
+            "reporter(id,name,login,email,ringId)",  # Full reporter details
+            "assignee(id,name,login,email,ringId)",  # Full assignee details
+            "comments(id,text,created,author(id,name,login,email,ringId))",  # Full comment history
+            "links(id,linkType(id,name,sourceToTarget,targetToSource),direction,issues(id,idReadable,summary))",  # Relationships
+            "subtasks(id,idReadable,summary,resolved)",  # Subtask relationships
+            "parent(id,idReadable,summary)",  # Parent relationship
+            "sprint(id,name,goal,start,finish)",  # Sprint associations
+            "timeTracking(workItems(id,date,duration,author(id,name,login,email)))"  # Detailed time tracking
+        ]
+        
+        # If fields are explicitly specified, use those instead of our optimization
+        if fields is not None:
+            return self._get_issues_by_query(f"project: EISMMABSW", ",".join(fields))
+            
+        # If optimization is disabled, get full data for all issues
+        if not optimize_data:
+            complete_fields = base_fields + [
+                field for field in detail_fields if field not in base_fields
             ]
+            return self._get_issues_by_query(f"project: EISMMABSW", ",".join(complete_fields))
         
-        field_param = ",".join(fields)
+        # Use the optimized strategy - different field sets for open vs closed issues
+        try:
+            # First, get all open issues with complete data
+            logger.info("Fetching all open issues with complete data...")
+            open_issues_query = "project: EISMMABSW State: -Resolved State: -Closed"
+            open_fields = base_fields + [
+                field for field in detail_fields if field not in base_fields
+            ]
+            open_issues = self._get_issues_by_query(open_issues_query, ",".join(open_fields))
+            logger.info(f"Found {len(open_issues)} open issues with full data")
+            
+            # Then, get all closed issues with limited data
+            logger.info("Fetching closed issues with summary data only...")
+            closed_issues_query = "project: EISMMABSW (State: Resolved OR State: Closed)"
+            closed_issues = self._get_issues_by_query(closed_issues_query, ",".join(base_fields))
+            logger.info(f"Found {len(closed_issues)} closed issues with summary data")
+            
+            # Combine both sets of issues
+            all_issues = open_issues + closed_issues
+            logger.info(f"Retrieved {len(all_issues)} total issues using optimized strategy")
+            return all_issues
+            
+        except Exception as e:
+            logger.error(f"Error fetching issues with optimized strategy: {str(e)}", exc_info=True)
+            logger.info("Falling back to standard issue fetch method...")
+            # Fall back to standard method if the optimized approach fails
+            return self._get_issues_by_query(f"project: EISMMABSW", ",".join(base_fields))
+    
+    def _get_issues_by_query(self, query: str, field_param: str) -> List[Dict[str, Any]]:
+        """
+        Get issues matching a query with the specified fields.
         
-        # According to YouTrack REST API documentation and project listing
-        # For our target project, we should use the short name instead of ID
-        project_short_name = "EISMMABSW"  # Shortname for "MQ EIS/KG BSW (Mercedes)"
-        project_query = f"project: {project_short_name}"
-        
+        Args:
+            query: YouTrack query string
+            field_param: Comma-separated list of fields to include
+            
+        Returns:
+            List of issue dictionaries
+        """
         params = {
             "fields": field_param,
-            "query": project_query,
+            "query": query,
             "$top": app_config.page_size
         }
         
@@ -146,7 +211,6 @@ class YouTrackAPI:
             skip += app_config.page_size
             logger.info(f"Retrieved {len(all_issues)} issues so far...")
         
-        logger.info(f"Retrieved {len(all_issues)} issues in total.")
         return all_issues
     
     def get_issue_details(self, issue_id: str, fields: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -333,7 +397,7 @@ class YouTrackAPI:
         return []
     
     def extract_full_project_data(self) -> Dict[str, Any]:
-        """Extract complete data for the project including issues, histories, and sprints."""
+        """Extract complete data for the project including issues, histories, and sprints using optimized data strategy."""
         logger.info(f"Starting data extraction for project: {self.project_id}")
         
         try:
@@ -345,17 +409,32 @@ class YouTrackAPI:
             sprints = self.get_project_sprints()
             logger.info(f"Retrieved {len(sprints)} sprints")
             
-            # Get all issues for the project
-            issues = self.get_project_issues()
-            logger.info(f"Retrieved {len(issues)} issues")
+            # Get all issues for the project using optimized data strategy
+            # This will fetch detailed data for open issues and summary data for closed issues
+            issues = self.get_project_issues(optimize_data=True)
+            logger.info(f"Retrieved {len(issues)} issues using optimized data strategy")
             
-            # Get issue IDs
-            issue_ids = [issue["id"] for issue in issues]
+            # Split open and closed issues for different processing
+            open_issues = []
+            closed_issues = []
             
-            # Get issue histories asynchronously
-            if issue_ids:
-                issue_histories = asyncio.run(self.get_all_issue_histories_async(issue_ids))
-                logger.info(f"Retrieved history for {len(issue_histories)} issues")
+            for issue in issues:
+                # Check if issue is resolved
+                if issue.get("resolved"):
+                    closed_issues.append(issue)
+                else:
+                    open_issues.append(issue)
+            
+            logger.info(f"Split issues into {len(open_issues)} open and {len(closed_issues)} closed issues")
+            
+            # Get issue IDs - prioritize getting history for open issues to optimize API usage
+            open_issue_ids = [issue["id"] for issue in open_issues]
+            
+            # Get histories for open issues only (to optimize API calls and context size)
+            # Closed issues have less benefit from detailed history
+            if open_issue_ids:
+                issue_histories = asyncio.run(self.get_all_issue_histories_async(open_issue_ids))
+                logger.info(f"Retrieved history for {len(issue_histories)} open issues")
             else:
                 issue_histories = {}
             
@@ -363,7 +442,8 @@ class YouTrackAPI:
             custom_field_bundles = {
                 "State": self.get_custom_field_values("State"),
                 "Type": self.get_custom_field_values("Type"),
-                "Priority": self.get_custom_field_values("Priority")
+                "Priority": self.get_custom_field_values("Priority"),
+                "Subsystem": self.get_custom_field_values("Subsystem")
             }
             
             logger.info(f"Retrieved custom field values for {len(custom_field_bundles)} fields")
