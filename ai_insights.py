@@ -8,6 +8,7 @@ import re
 import google.generativeai as genai
 from typing import Dict, List, Any, Optional
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 
 from config import app_config
@@ -611,10 +612,26 @@ class AIInsightsGenerator:
             Keep your analysis professional, data-driven, and actionable. Avoid generic statements.
             """
             
+            # Custom JSON serializer that handles numpy types
+            def json_serial(obj):
+                """JSON serializer for objects not serializable by default json code"""
+                if isinstance(obj, (np.integer, np.int64)):
+                    return int(obj)
+                if isinstance(obj, (np.floating, np.float64)):
+                    return float(obj)
+                if isinstance(obj, np.bool_):
+                    return bool(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                if isinstance(obj, (pd.Timestamp, datetime)):
+                    return obj.isoformat()
+                raise TypeError(f"Type {type(obj)} not serializable")
+
+            # Format the context for the prompt
             user_prompt = f"""
             Here is the current project data (as of {datetime.now().strftime('%Y-%m-%d')}):
             
-            {json.dumps(context, indent=2)}
+            {json.dumps(context, indent=2, default=json_serial)}
             
             Analyze this data and provide insights based on the structure described in the system prompt.
             """
@@ -800,11 +817,25 @@ class AIInsightsGenerator:
             else:
                 trend_data = weekly_created.to_dict(orient='records')
             
-            # Create prompt
+            # Create prompt with proper JSON serialization
+            def json_serial(obj):
+                """JSON serializer for objects not serializable by default json code"""
+                if isinstance(obj, (np.integer, np.int64)):
+                    return int(obj)
+                if isinstance(obj, (np.floating, np.float64)):
+                    return float(obj)
+                if isinstance(obj, np.bool_):
+                    return bool(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                if isinstance(obj, (pd.Timestamp, datetime)):
+                    return obj.isoformat()
+                return str(obj)
+                
             prompt = f"""
             Analyze the following weekly issue creation and resolution data for the Mercedes project:
             
-            {json.dumps(trend_data, indent=2, default=str)}
+            {json.dumps(trend_data, indent=2, default=json_serial)}
             
             Please provide:
             1. An analysis of overall trends in issue creation and resolution
@@ -859,10 +890,25 @@ class AIInsightsGenerator:
             # Prepare context
             context = self._prepare_data_context(data_processor)
             
+            # Custom JSON serializer that handles numpy types
+            def json_serial(obj):
+                """JSON serializer for objects not serializable by default json code"""
+                if isinstance(obj, (np.integer, np.int64)):
+                    return int(obj)
+                if isinstance(obj, (np.floating, np.float64)):
+                    return float(obj)
+                if isinstance(obj, np.bool_):
+                    return bool(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                if isinstance(obj, (pd.Timestamp, datetime)):
+                    return obj.isoformat()
+                return str(obj)
+                
             prompt = f"""
             Based on the following YouTrack project data:
             
-            {json.dumps(context, indent=2, default=str)}
+            {json.dumps(context, indent=2, default=json_serial)}
             
             Generate 5 important follow-up questions that a project manager should ask to better understand the current project status and potential issues.
             
