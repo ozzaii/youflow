@@ -179,15 +179,28 @@ class AIInsightsGenerator:
         try:
             # Basic project stats
             if data_processor.issues_df is not None and not data_processor.issues_df.empty:
+                # Make a copy to avoid modifying the original dataframe
+                issues_df = data_processor.issues_df.copy()
+                
+                # Fix timestamps - ensure proper datetime format
+                for col in ['created', 'updated', 'resolved']:
+                    if col in issues_df.columns:
+                        # Convert timestamps to proper datetime objects
+                        try:
+                            if issues_df[col].dtype != 'datetime64[ns]':
+                                issues_df[col] = pd.to_datetime(issues_df[col], errors='coerce')
+                        except Exception as e:
+                            logger.warning(f"Error converting {col} dates: {str(e)}")
+                
                 # Check if required columns exist
-                if 'resolved' not in data_processor.issues_df.columns:
+                if 'resolved' not in issues_df.columns:
                     logger.warning("Required column 'resolved' missing from issues dataframe")
-                    total_issues = len(data_processor.issues_df)
+                    total_issues = len(issues_df)
                     open_issues = total_issues  # Assume all open if no resolved column
                     resolved_issues = 0
                 else:
-                    total_issues = len(data_processor.issues_df)
-                    open_issues = data_processor.issues_df[data_processor.issues_df['resolved'].isna()].shape[0]
+                    total_issues = len(issues_df)
+                    open_issues = issues_df[issues_df['resolved'].isna()].shape[0]
                     resolved_issues = total_issues - open_issues
                 
                 # Last 7 days stats
@@ -198,30 +211,56 @@ class AIInsightsGenerator:
                 month_ago = datetime.now() - timedelta(days=30)
                 month_timestamp = pd.Timestamp(month_ago)
                 
+                # Extract rich time-based metrics
+                time_metrics = {}
+                avg_resolution_days = 0
+                median_resolution_days = 0
+                
                 # Check if required column exists
-                if 'created' in data_processor.issues_df.columns:
+                if 'created' in issues_df.columns:
                     # Weekly stats
-                    recent_issues = data_processor.issues_df[data_processor.issues_df['created'] > week_timestamp]
+                    recent_issues = issues_df[issues_df['created'] > week_timestamp]
                     recently_created = len(recent_issues)
                     
                     # Monthly stats
-                    monthly_issues = data_processor.issues_df[data_processor.issues_df['created'] > month_timestamp]
+                    monthly_issues = issues_df[issues_df['created'] > month_timestamp]
                     monthly_created = len(monthly_issues)
                     
-                    if 'resolved' in data_processor.issues_df.columns:
+                    if 'resolved' in issues_df.columns:
                         # Weekly resolutions
-                        recent_resolutions = data_processor.issues_df[
-                            (data_processor.issues_df['resolved'] > week_timestamp) & 
-                            (data_processor.issues_df['resolved'].notna())
+                        recent_resolutions = issues_df[
+                            (issues_df['resolved'] > week_timestamp) & 
+                            (issues_df['resolved'].notna())
                         ]
                         recently_resolved = len(recent_resolutions)
                         
                         # Monthly resolutions
-                        monthly_resolutions = data_processor.issues_df[
-                            (data_processor.issues_df['resolved'] > month_timestamp) & 
-                            (data_processor.issues_df['resolved'].notna())
+                        monthly_resolutions = issues_df[
+                            (issues_df['resolved'] > month_timestamp) & 
+                            (issues_df['resolved'].notna())
                         ]
                         monthly_resolved = len(monthly_resolutions)
+                        
+                        # Calculate resolution time metrics
+                        resolved_issues_df = issues_df[issues_df['resolved'].notna()].copy()
+                        if not resolved_issues_df.empty:
+                            # Use .loc to avoid SettingWithCopyWarning
+                            resolved_issues_df.loc[:, 'resolution_time'] = resolved_issues_df['resolved'] - resolved_issues_df['created']
+                            
+                            # Extract meaningful time metrics
+                            resolution_seconds = resolved_issues_df['resolution_time'].mean().total_seconds()
+                            avg_resolution_days = resolution_seconds / (24 * 3600) if resolution_seconds else 0
+                            
+                            median_seconds = resolved_issues_df['resolution_time'].median().total_seconds()
+                            median_resolution_days = median_seconds / (24 * 3600) if median_seconds else 0
+                            
+                            # Add detailed time metrics
+                            time_metrics = {
+                                "avg_resolution_days": round(avg_resolution_days, 2),
+                                "median_resolution_days": round(median_resolution_days, 2),
+                                "min_resolution_days": round(resolved_issues_df['resolution_time'].min().total_seconds() / (24 * 3600), 2),
+                                "max_resolution_days": round(resolved_issues_df['resolution_time'].max().total_seconds() / (24 * 3600), 2)
+                            }
                     else:
                         recently_resolved = 0
                         monthly_resolved = 0
@@ -233,10 +272,10 @@ class AIInsightsGenerator:
                 
                 # Identify stale issues (open more than 30 days)
                 stale_issues = 0
-                if 'created' in data_processor.issues_df.columns and 'resolved' in data_processor.issues_df.columns:
+                if 'created' in issues_df.columns and 'resolved' in issues_df.columns:
                     stale_mask = (
-                        (data_processor.issues_df['created'] < month_timestamp) & 
-                        (data_processor.issues_df['resolved'].isna())
+                        (issues_df['created'] < month_timestamp) & 
+                        (issues_df['resolved'].isna())
                     )
                     stale_issues = stale_mask.sum()
                 
@@ -248,8 +287,14 @@ class AIInsightsGenerator:
                     "recently_resolved": recently_resolved,  # Last 7 days
                     "monthly_created": monthly_created,  # Last 30 days
                     "monthly_resolved": monthly_resolved,  # Last 30 days
-                    "stale_issues": stale_issues  # Open > 30 days
+                    "stale_issues": stale_issues,  # Open > 30 days
+                    "avg_resolution_days": round(avg_resolution_days, 2)
                 }
+                
+                # Add time metrics
+                if time_metrics:
+                    for key, value in time_metrics.items():
+                        context["project_stats"][key] = value
                 
                 # Calculate progress metrics
                 if monthly_created > 0:
@@ -713,23 +758,31 @@ class AIInsightsGenerator:
             # Create prompt with data optimization context
             system_prompt = """
             You are an expert project analyst working with YouTrack data for the Mercedes "MQ EIS/KG BSW" project.
-            Your task is to analyze the provided project data and generate actionable insights.
+            Your task is to analyze the provided project data and generate actionable insights for a daily report.
             Focus on identifying trends, risks, and opportunities. Be specific and concrete in your analysis.
             
             Important Context: 
-            - The data has been optimized to provide comprehensive details on all OPEN issues while providing summary information for CLOSED issues.
-            - Open issues include full comment history, status transitions, and detailed activity logs.
-            - Closed issues are summarized with resolution statistics, trends, and aggregated metrics to avoid token overload.
+            - The data includes comprehensive details on all OPEN issues and also summary information for CLOSED issues.
+            - Open issues include their status, assignees, priorities, comment history, and activity logs.
+            - Closed issues provide resolution statistics, trends, and aggregated metrics across time.
             - Base your analysis primarily on currently open and active issues where action is still possible.
-            - Reference the closed_issues_summary section for historical context and trend analysis across resolved issues.
-            - Use closed issue data for trend analysis and identifying historical patterns.
+            - Use the time-based metrics to identify trends and areas of improvement.
+            - Pay close attention to stale issues (open for >30 days) as they may represent project risks.
+            - Examine workload distribution across team members to identify potential bottlenecks.
+            
+            Your analysis should consider:
+            - Are there clear patterns in issue creation and resolution rates?
+            - Which team members have the highest workload and might need support?
+            - Are there priority issues that are not being addressed?
+            - Has the team's velocity changed over recent weeks/months?
+            - Are there risky areas that should receive immediate attention?
             
             Structure your response in the following sections:
             1. Executive Summary: 2-3 sentence overview of the current project status
-            2. Key Metrics: Highlight important metrics and their implications
-            3. Risks & Bottlenecks: Identify potential issues that need attention
-            4. Recommendations: Provide 3-5 actionable recommendations based on the data
-            5. Team Performance: Analyze team velocity and individual contributions
+            2. Key Metrics: Highlight 3-5 important metrics and their implications
+            3. Risks & Bottlenecks: Identify specific potential issues that need attention
+            4. Recommendations: Suggest 3-5 specific actions to improve the project
+            5. Team Performance: Analyze team productivity and capacity
             
             For your analysis:
             - Prioritize insights related to current open issues where action can be taken
@@ -738,6 +791,8 @@ class AIInsightsGenerator:
             - Analyze work distribution and team workload for resource optimization
             - Consider sprint forecasting if sprint data is available
             
+            Focus on providing actionable, practical insights related to the current state of the project.
+            Your analysis should be detailed enough to help the team lead make informed decisions.
             Keep your analysis professional, data-driven, and actionable. Avoid generic statements.
             """
             
@@ -979,25 +1034,8 @@ class AIInsightsGenerator:
             else:
                 trend_data = weekly_created.to_dict(orient='records')
             
-            # Convert data for serialization
-            trend_data_converted = []
-            for item in trend_data:
-                # Handle NumPy types in the trend data (which is a list of dicts)
-                converted_item = {}
-                for k, v in item.items():
-                    if isinstance(v, (np.integer, np.int64)):
-                        converted_item[k] = int(v)
-                    elif isinstance(v, (np.floating, np.float64)):
-                        converted_item[k] = float(v)
-                    elif isinstance(v, np.bool_):
-                        converted_item[k] = bool(v)
-                    elif isinstance(v, np.ndarray):
-                        converted_item[k] = v.tolist()
-                    elif isinstance(v, (pd.Timestamp, datetime)):
-                        converted_item[k] = v.isoformat()
-                    else:
-                        converted_item[k] = v
-                trend_data_converted.append(converted_item)
+            # Convert data for serialization using our centralized helper method
+            trend_data_converted = self._convert_numpy_types(trend_data)
                 
             # Create prompt with JSON serialization
             def json_serial(obj):
