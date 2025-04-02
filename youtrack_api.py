@@ -43,10 +43,11 @@ class YouTrackAPI:
             retry_after = int(response.headers.get('Retry-After', youtrack_config.retry_delay))
             logger.warning(f"Rate limited. Waiting for {retry_after} seconds.")
             time.sleep(retry_after)
-            return None
+            return {}  # Return empty dict instead of None
         else:
             logger.error(f"API request failed: {response.status_code} - {response.text}")
             response.raise_for_status()
+            return {}  # This will only execute if raise_for_status doesn't raise an exception
     
     def _make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None, 
                      method: str = "GET", data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -78,6 +79,15 @@ class YouTrackAPI:
         
         return {}
     
+    def list_all_projects(self) -> List[Dict[str, Any]]:
+        """List all available projects on the YouTrack instance."""
+        endpoint = "admin/projects"
+        projects = self._make_request(endpoint)
+        # Ensure we return a list even if the API returns a dict
+        if isinstance(projects, dict):
+            return [projects] if projects else []
+        return projects if projects else []
+    
     def get_project_details(self) -> Dict[str, Any]:
         """Get project details by ID or name."""
         # First try by project ID (shorter form)
@@ -92,7 +102,7 @@ class YouTrackAPI:
             endpoint = f"admin/projects/{encoded_project_id}"
             return self._make_request(endpoint)
     
-    def get_project_issues(self, fields: List[str] = None) -> List[Dict[str, Any]]:
+    def get_project_issues(self, fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Get all issues for the project with specified fields using the latest API."""
         if fields is None:
             fields = [
@@ -144,7 +154,7 @@ class YouTrackAPI:
         logger.info(f"Retrieved {len(all_issues)} issues in total.")
         return all_issues
     
-    def get_issue_details(self, issue_id: str, fields: List[str] = None) -> Dict[str, Any]:
+    def get_issue_details(self, issue_id: str, fields: Optional[List[str]] = None) -> Dict[str, Any]:
         """Get detailed information for a specific issue."""
         if fields is None:
             fields = [
@@ -264,10 +274,24 @@ class YouTrackAPI:
         }
         
         agiles = self._make_request(endpoint, params=params)
+        # Ensure agiles is a list
+        if isinstance(agiles, dict):
+            agiles = [agiles] if agiles else []
+        
         project_agile_id = None
         
         for agile in agiles:
-            for project in agile.get('projects', []):
+            if not isinstance(agile, dict):
+                continue
+                
+            projects = agile.get('projects', [])
+            if isinstance(projects, dict):
+                projects = [projects]
+                
+            for project in projects:
+                if not isinstance(project, dict):
+                    continue
+                    
                 # Match by project ID or name
                 if project.get('id') == self.project_id or project.get('name') == self.project_id:
                     project_agile_id = agile.get('id')
@@ -286,7 +310,11 @@ class YouTrackAPI:
             "$top": 100
         }
         
-        return self._make_request(endpoint, params=params)
+        sprints = self._make_request(endpoint, params=params)
+        # Ensure sprints is a list
+        if isinstance(sprints, dict):
+            return [sprints] if sprints else []
+        return sprints if sprints else []
     
     def get_custom_field_values(self, field_name: str) -> List[Dict[str, Any]]:
         """Get all possible values for a custom field."""
@@ -298,11 +326,21 @@ class YouTrackAPI:
         }
         
         bundles = self._make_request(endpoint, params=params)
+        # Ensure bundles is a list
+        if isinstance(bundles, dict):
+            bundles = [bundles] if bundles else []
         
         # Find the bundle that matches our field name
         for bundle in bundles:
-            if bundle.get('name', '').lower() == field_name.lower():
-                return bundle.get('values', [])
+            if not isinstance(bundle, dict):
+                continue
+                
+            bundle_name = bundle.get('name', '')
+            if isinstance(bundle_name, str) and bundle_name.lower() == field_name.lower():
+                values = bundle.get('values', [])
+                if isinstance(values, dict):
+                    return [values] if values else []
+                return values if values else []
         
         logger.warning(f"No custom field bundle found for field: {field_name}")
         return []

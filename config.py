@@ -12,7 +12,7 @@ class YouTrackConfig:
         "YOUTRACK_TOKEN", 
         "perm-a2Fhbi5vemthbg==.NTgtMTU=.u5uaOfgc8R5zWFA1irSCpuf1z4XVUa"
     )
-    project_id: str = "MQ EIS/KG BSW (Mercedes)"
+    project_id: str = "0-9"  # "MQ EIS/KG BSW (Mercedes)"
     max_retries: int = 3
     retry_delay: int = 2  # seconds
     timeout: int = 30  # seconds
