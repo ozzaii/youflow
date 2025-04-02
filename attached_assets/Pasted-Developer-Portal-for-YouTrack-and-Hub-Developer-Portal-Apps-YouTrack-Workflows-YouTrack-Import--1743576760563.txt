@@ -1,0 +1,143 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+Query Syntax
+Query Syntax﻿
+Last modified: 11 March 2025
+To filter issues or tags that you receive from a server in response to your request, you need to specify the query parameter in the request.
+You can only use queries in GET requests that work with collections of issues or tags.
+When working with collections of issues, the query parameter represents a search query and has the same syntax with the adjustment for HTML symbols escaping for URIs. For details about YouTrack search queries, refer to the Search Query Reference.
+When working with collections of tags, you can use the query parameter to filter a list of tags by the tag name.
+Samples﻿
+Let's see how queries work on a sample request for the issues list.
+Request without Query Parameter﻿
+First, let's get an unfiltered list of issues without the query parameter. Here's a sample request:
+curl -X GET \
+'https://example.youtrack.cloud/api/issues?fields=id,summary,project(name)' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:amFuZS5kb2U=.UkVTVCBBUEk=.wcKuAok8cHmAtzjA6xlc4BrB4hleaX' \
+-H 'Cache-Control: no-cache' \
+-H 'Content-Type: application/json'
+In response, the server sends the following:
+[
+  {
+    "project":{
+      "name":"Demo Project",
+      "$type":"Project"
+    },
+    "summary":"Welcome to your YouTrack!",
+    "id":"2-99",
+    "$type":"Issue"
+  },
+  {
+    "project":{
+      "name":"Demo Project",
+      "$type":"Project"
+    },
+    "summary":"Create Issues",
+    "id":"2-106",
+    "$type":"Issue"
+  },
+  {
+    "project":{
+      "name":"Sample Project",
+      "$type":"Project"
+    },
+    "summary":"REST API lets you create issues!",
+    "id":"2-142",
+    "$type":"Issue"
+  },
+  {
+    "project":{
+      "name":"Sample Project",
+      "$type":"Project"
+    },
+    "summary":"Issue from REST #1",
+    "id":"2-0",
+    "$type":"Issue"
+  }
+]
+Request with Query Parameter﻿
+Now, let's use the query request parameter to filter the list of issues by the name of the project. Here's a sample request:
+curl -X GET \
+'https://example.youtrack.cloud/api/issues?fields=id,summary,project(name)&query=project:+%7BSample+Project%7D' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:amFuZS5kb2U=.UkVTVCBBUEk=.wcKuAok8cHmAtzjA6xlc4BrB4hleaX' \
+-H 'Cache-Control: no-cache' \
+-H 'Content-Type: application/json'
+To the sample request with the query parameter, the response body contains data only for matching issues:
+[
+  {
+    "project":{
+      "name":"Sample Project",
+      "$type":"Project"
+    },
+    "summary":"REST API lets you create issues!",
+    "id":"2-142",
+    "$type":"Issue"
+  },
+  {
+    "project":{
+      "name":"Sample Project",
+      "$type":"Project"
+    },
+    "summary":"Issue from REST #1",
+    "id":"2-0",
+    "$type":"Issue"
+  }
+]
+Finally, let's use a bit more complex query. Here, we are looking for issues that are assigned to the user "john.doe", are not yet resolved, and contain the word "summary". Here's a sample request:
+curl -X GET \
+'https://example.youtrack.cloud/api/issues?fields=id,summary,project(name)&query=for:+john.doe+%23Unresolved+summary' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:amFuZS5kb2U=.UkVTVCBBUEk=.wcKuAok8cHmAtzjA6xlc4BrB4hleaX' \
+-H 'Cache-Control: no-cache' \
+-H 'Content-Type: application/json'
+Here's the response from the server:
+[
+  {
+    "project":{
+      "name":"Sample Project",
+      "$type":"Project"
+    },
+    "summary":"New summary",
+    "id":"2-42",
+    "$type":"Issue"
+  }
+]
+Query Syntax
+Samples
+Request without Query Parameter
+Request with Query Parameter
+Was this page helpful?
+YesNo
+Fields Syntax
+Request Headers
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.

@@ -369,43 +369,61 @@ class DataProcessor:
     
     def get_status_transitions(self) -> pd.DataFrame:
         """Get status transitions from history data."""
-        if self.history_df is None:
+        if self.history_df is None or self.history_df.empty:
             logger.warning("History data not available. Call process_data() first.")
             return pd.DataFrame()
+            
+        # Check if the required column exists
+        if 'field_name' not in self.history_df.columns:
+            logger.warning("field_name column not found in history data. Creating empty dataframe.")
+            # Create an empty dataframe with the expected columns
+            return pd.DataFrame(columns=['issue_id', 'activity_id', 'timestamp', 
+                                        'author', 'field_name', 'field_type', 
+                                        'category', 'added', 'removed', 'summary'])
         
         # Filter for 'State' field changes
         status_changes = self.history_df[self.history_df['field_name'] == 'State'].copy()
         
         # Add issue summary for better context
-        if self.issues_df is not None:
+        if self.issues_df is not None and not self.issues_df.empty:
             status_changes = status_changes.merge(
                 self.issues_df[['id', 'summary']], 
                 left_on='issue_id', 
                 right_on='id', 
                 how='left'
             )
-            status_changes.drop('id', axis=1, inplace=True)
+            if 'id' in status_changes.columns:
+                status_changes.drop('id', axis=1, inplace=True)
         
         return status_changes
     
     def get_assignee_changes(self) -> pd.DataFrame:
         """Get assignee changes from history data."""
-        if self.history_df is None:
+        if self.history_df is None or self.history_df.empty:
             logger.warning("History data not available. Call process_data() first.")
             return pd.DataFrame()
+            
+        # Check if the required column exists
+        if 'field_name' not in self.history_df.columns:
+            logger.warning("field_name column not found in history data. Creating empty dataframe.")
+            # Create an empty dataframe with the expected columns
+            return pd.DataFrame(columns=['issue_id', 'activity_id', 'timestamp', 
+                                        'author', 'field_name', 'field_type', 
+                                        'category', 'added', 'removed', 'summary'])
         
         # Filter for 'Assignee' field changes
         assignee_changes = self.history_df[self.history_df['field_name'] == 'Assignee'].copy()
         
         # Add issue summary for better context
-        if self.issues_df is not None:
+        if self.issues_df is not None and not self.issues_df.empty:
             assignee_changes = assignee_changes.merge(
                 self.issues_df[['id', 'summary']], 
                 left_on='issue_id', 
                 right_on='id', 
                 how='left'
             )
-            assignee_changes.drop('id', axis=1, inplace=True)
+            if 'id' in assignee_changes.columns:
+                assignee_changes.drop('id', axis=1, inplace=True)
         
         return assignee_changes
     
@@ -428,39 +446,73 @@ class DataProcessor:
     
     def get_sprint_statistics(self) -> Dict[str, Any]:
         """Calculate sprint statistics with enhanced data from latest REST API."""
-        if self.sprint_df is None or self.issues_df is None:
+        if self.sprint_df is None or self.issues_df is None or self.sprint_df.empty:
             logger.warning("Sprint or issue data not available. Call process_data() first.")
             return {}
         
+        # Check if required column exists
+        if 'sprint_name' not in self.sprint_df.columns:
+            logger.warning("sprint_name column not found in sprint data.")
+            return {}
+            
         # Get unique sprints
         unique_sprints = self.sprint_df['sprint_name'].unique()
         
         sprint_stats = {}
         for sprint in unique_sprints:
             # Get representative sprint record for this sprint (for metadata)
-            sprint_record = self.sprint_df[self.sprint_df['sprint_name'] == sprint].iloc[0] if not self.sprint_df[self.sprint_df['sprint_name'] == sprint].empty else {}
+            filtered_sprints = self.sprint_df[self.sprint_df['sprint_name'] == sprint]
+            if filtered_sprints.empty:
+                continue
+                
+            sprint_record = filtered_sprints.iloc[0].to_dict() if not filtered_sprints.empty else {}
             
+            # Safety check - ensure we have a valid record
+            if not sprint_record:
+                continue
+                
             # Get issues in this sprint
-            sprint_issues = self.sprint_df[self.sprint_df['sprint_name'] == sprint]['issue_id'].dropna().tolist()
+            sprint_issues = filtered_sprints['issue_id'].dropna().tolist() if 'issue_id' in filtered_sprints.columns else []
             
             # Get issue details
-            sprint_issue_details = self.issues_df[self.issues_df['id'].isin(sprint_issues)] if sprint_issues else pd.DataFrame()
+            sprint_issue_details = self.issues_df[self.issues_df['id'].isin(sprint_issues)] if sprint_issues and 'id' in self.issues_df.columns else pd.DataFrame()
             
             # Calculate statistics
             total_issues = len(sprint_issues)
-            resolved_issues = sprint_issue_details.dropna(subset=['resolved']).shape[0] if not sprint_issue_details.empty else 0
+            resolved_issues = sprint_issue_details.dropna(subset=['resolved']).shape[0] if not sprint_issue_details.empty and 'resolved' in sprint_issue_details.columns else 0
             
-            # Extract time data
-            sprint_start = pd.to_datetime(sprint_record.get('sprint_start', None), errors='coerce')
-            sprint_finish = pd.to_datetime(sprint_record.get('sprint_finish', None), errors='coerce')
+            # Safely extract time data with error handling
+            try:
+                sprint_start = pd.to_datetime(sprint_record.get('sprint_start', None), errors='coerce')
+            except (TypeError, ValueError, AttributeError):
+                sprint_start = None
+                
+            try:
+                sprint_finish = pd.to_datetime(sprint_record.get('sprint_finish', None), errors='coerce')
+            except (TypeError, ValueError, AttributeError):
+                sprint_finish = None
             
             # Calculate time metrics if dates are available
-            days_total = (sprint_finish - sprint_start).days if sprint_start is not None and sprint_finish is not None else None
-            days_elapsed = (pd.Timestamp.now() - sprint_start).days if sprint_start is not None else None
-            days_remaining = (sprint_finish - pd.Timestamp.now()).days if sprint_finish is not None else None
+            try:
+                days_total = (sprint_finish - sprint_start).days if sprint_start is not None and sprint_finish is not None else None
+            except (TypeError, AttributeError):
+                days_total = None
+                
+            try:
+                days_elapsed = (pd.Timestamp.now() - sprint_start).days if sprint_start is not None else None
+            except (TypeError, AttributeError):
+                days_elapsed = None
+                
+            try:
+                days_remaining = (sprint_finish - pd.Timestamp.now()).days if sprint_finish is not None else None
+            except (TypeError, AttributeError):
+                days_remaining = None
             
             # Progress percentage
-            progress_pct = (days_elapsed / days_total * 100) if days_total and days_elapsed is not None else None
+            try:
+                progress_pct = (days_elapsed / days_total * 100) if days_total and days_elapsed is not None and days_total > 0 else None
+            except (TypeError, ZeroDivisionError):
+                progress_pct = None
             
             # Check if the sprint is current, past, or future
             now = pd.Timestamp.now()
@@ -469,18 +521,28 @@ class DataProcessor:
             is_future = False
             
             if sprint_start is not None and sprint_finish is not None:
-                is_current = sprint_start <= now <= sprint_finish
-                is_past = now > sprint_finish
-                is_future = now < sprint_start
+                try:
+                    is_current = sprint_start <= now <= sprint_finish
+                    is_past = now > sprint_finish
+                    is_future = now < sprint_start
+                except (TypeError, ValueError):
+                    pass
+            
+            # Use safe get for dictionary keys that might not exist
+            def safe_get(d, key, default=''):
+                try:
+                    return d.get(key, default)
+                except (AttributeError, TypeError):
+                    return default
             
             sprint_stats[sprint] = {
                 'total_issues': total_issues,
                 'resolved_issues': resolved_issues,
                 'completion_rate': resolved_issues / total_issues if total_issues > 0 else 0,
-                'sprint_goal': sprint_record.get('sprint_goal', ''),
+                'sprint_goal': safe_get(sprint_record, 'sprint_goal'),
                 'sprint_start': sprint_start,
                 'sprint_finish': sprint_finish,
-                'sprint_status': sprint_record.get('sprint_status', ''),
+                'sprint_status': safe_get(sprint_record, 'sprint_status'),
                 'is_current': is_current,
                 'is_past': is_past,
                 'is_future': is_future,

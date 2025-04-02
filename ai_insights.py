@@ -54,71 +54,159 @@ class AIInsightsGenerator:
         """
         context = {}
         
-        # Basic project stats
-        if data_processor.issues_df is not None:
-            total_issues = len(data_processor.issues_df)
-            open_issues = data_processor.issues_df[data_processor.issues_df['resolved'].isna()].shape[0]
-            resolved_issues = total_issues - open_issues
-            
-            # Last 7 days stats
-            week_ago = datetime.now() - timedelta(days=7)
-            week_timestamp = pd.Timestamp(week_ago)
-            
-            recent_issues = data_processor.issues_df[data_processor.issues_df['created'] > week_timestamp]
-            recently_created = len(recent_issues)
-            
-            recent_resolutions = data_processor.issues_df[
-                (data_processor.issues_df['resolved'] > week_timestamp) & 
-                (data_processor.issues_df['resolved'].notna())
-            ]
-            recently_resolved = len(recent_resolutions)
-            
+        try:
+            # Basic project stats
+            if data_processor.issues_df is not None and not data_processor.issues_df.empty:
+                # Check if required columns exist
+                if 'resolved' not in data_processor.issues_df.columns:
+                    logger.warning("Required column 'resolved' missing from issues dataframe")
+                    total_issues = len(data_processor.issues_df)
+                    open_issues = total_issues  # Assume all open if no resolved column
+                    resolved_issues = 0
+                else:
+                    total_issues = len(data_processor.issues_df)
+                    open_issues = data_processor.issues_df[data_processor.issues_df['resolved'].isna()].shape[0]
+                    resolved_issues = total_issues - open_issues
+                
+                # Last 7 days stats
+                week_ago = datetime.now() - timedelta(days=7)
+                week_timestamp = pd.Timestamp(week_ago)
+                
+                # Check if required column exists
+                if 'created' in data_processor.issues_df.columns:
+                    recent_issues = data_processor.issues_df[data_processor.issues_df['created'] > week_timestamp]
+                    recently_created = len(recent_issues)
+                    
+                    if 'resolved' in data_processor.issues_df.columns:
+                        recent_resolutions = data_processor.issues_df[
+                            (data_processor.issues_df['resolved'] > week_timestamp) & 
+                            (data_processor.issues_df['resolved'].notna())
+                        ]
+                        recently_resolved = len(recent_resolutions)
+                    else:
+                        recently_resolved = 0
+                else:
+                    recently_created = 0
+                    recently_resolved = 0
+                
+                context["project_stats"] = {
+                    "total_issues": total_issues,
+                    "open_issues": open_issues,
+                    "resolved_issues": resolved_issues,
+                    "recently_created": recently_created,
+                    "recently_resolved": recently_resolved
+                }
+            else:
+                context["project_stats"] = {
+                    "total_issues": 0,
+                    "open_issues": 0,
+                    "resolved_issues": 0,
+                    "recently_created": 0,
+                    "recently_resolved": 0
+                }
+        except Exception as e:
+            logger.error(f"Error preparing project stats context: {str(e)}", exc_info=True)
             context["project_stats"] = {
-                "total_issues": total_issues,
-                "open_issues": open_issues,
-                "resolved_issues": resolved_issues,
-                "recently_created": recently_created,
-                "recently_resolved": recently_resolved
+                "total_issues": 0,
+                "open_issues": 0,
+                "resolved_issues": 0,
+                "recently_created": 0,
+                "recently_resolved": 0,
+                "error": str(e)
             }
         
-        # Status distribution
-        if data_processor.custom_fields_df is not None:
-            status_field = data_processor.custom_fields_df[data_processor.custom_fields_df['field_name'] == 'State']
-            if not status_field.empty:
-                status_counts = status_field['field_value'].value_counts().to_dict()
-                context["status_distribution"] = status_counts
-        
-        # Assignee workload
-        assignee_workload = data_processor.get_assignee_workload()
-        if not assignee_workload.empty:
-            context["assignee_workload"] = assignee_workload.to_dict(orient='records')
-        
-        # Sprint statistics
-        sprint_stats = data_processor.get_sprint_statistics()
-        if sprint_stats:
-            context["sprint_statistics"] = sprint_stats
-        
-        # Recent activity
-        if data_processor.history_df is not None:
-            recent_cutoff = pd.Timestamp.now() - pd.Timedelta(days=7)
-            recent_activity = data_processor.history_df[data_processor.history_df['timestamp'] > recent_cutoff].copy()
-            
-            if not recent_activity.empty:
-                # Sort by timestamp (most recent first)
-                recent_activity = recent_activity.sort_values('timestamp', ascending=False)
+        try:
+            # Status distribution
+            if (data_processor.custom_fields_df is not None and 
+                not data_processor.custom_fields_df.empty and
+                'field_name' in data_processor.custom_fields_df.columns and
+                'field_value' in data_processor.custom_fields_df.columns):
                 
-                # Add issue summary
-                if data_processor.issues_df is not None:
-                    recent_activity = recent_activity.merge(
-                        data_processor.issues_df[['id', 'summary']],
-                        left_on='issue_id',
-                        right_on='id',
-                        how='left'
-                    )
+                status_field = data_processor.custom_fields_df[data_processor.custom_fields_df['field_name'] == 'State']
+                if not status_field.empty:
+                    status_counts = status_field['field_value'].value_counts().to_dict()
+                    context["status_distribution"] = status_counts
+                else:
+                    context["status_distribution"] = {}
+            else:
+                context["status_distribution"] = {}
+        except Exception as e:
+            logger.error(f"Error preparing status distribution context: {str(e)}", exc_info=True)
+            context["status_distribution"] = {"error": str(e)}
+        
+        try:
+            # Assignee workload
+            assignee_workload = data_processor.get_assignee_workload()
+            if not assignee_workload.empty:
+                context["assignee_workload"] = assignee_workload.to_dict(orient='records')
+            else:
+                context["assignee_workload"] = []
+        except Exception as e:
+            logger.error(f"Error preparing assignee workload context: {str(e)}", exc_info=True)
+            context["assignee_workload"] = [{"error": str(e)}]
+        
+        try:
+            # Sprint statistics
+            sprint_stats = data_processor.get_sprint_statistics()
+            if sprint_stats:
+                # Convert datetime objects to strings for JSON serialization
+                for sprint, stats in sprint_stats.items():
+                    for key, value in stats.items():
+                        if isinstance(value, (pd.Timestamp, datetime)):
+                            sprint_stats[sprint][key] = value.isoformat()
+                context["sprint_statistics"] = sprint_stats
+            else:
+                context["sprint_statistics"] = {}
+        except Exception as e:
+            logger.error(f"Error preparing sprint statistics context: {str(e)}", exc_info=True)
+            context["sprint_statistics"] = {"error": str(e)}
+        
+        try:
+            # Recent activity
+            if (data_processor.history_df is not None and 
+                not data_processor.history_df.empty and
+                'timestamp' in data_processor.history_df.columns):
                 
-                # Convert to records
-                activity_records = recent_activity.head(50).to_dict(orient='records')
-                context["recent_activity"] = activity_records
+                recent_cutoff = pd.Timestamp.now() - pd.Timedelta(days=7)
+                recent_activity = data_processor.history_df[data_processor.history_df['timestamp'] > recent_cutoff].copy()
+                
+                if not recent_activity.empty:
+                    # Sort by timestamp (most recent first)
+                    recent_activity = recent_activity.sort_values('timestamp', ascending=False)
+                    
+                    # Add issue summary if possible
+                    if (data_processor.issues_df is not None and 
+                        not data_processor.issues_df.empty and
+                        'id' in data_processor.issues_df.columns and 
+                        'summary' in data_processor.issues_df.columns and
+                        'issue_id' in recent_activity.columns):
+                        
+                        recent_activity = recent_activity.merge(
+                            data_processor.issues_df[['id', 'summary']],
+                            left_on='issue_id',
+                            right_on='id',
+                            how='left'
+                        )
+                    
+                    # Convert to records - handle datetime serialization
+                    activity_records = []
+                    for _, row in recent_activity.head(50).iterrows():
+                        record = {}
+                        for col, val in row.items():
+                            if isinstance(val, (pd.Timestamp, datetime)):
+                                record[col] = val.isoformat()
+                            else:
+                                record[col] = val
+                        activity_records.append(record)
+                    
+                    context["recent_activity"] = activity_records
+                else:
+                    context["recent_activity"] = []
+            else:
+                context["recent_activity"] = []
+        except Exception as e:
+            logger.error(f"Error preparing recent activity context: {str(e)}", exc_info=True)
+            context["recent_activity"] = [{"error": str(e)}]
         
         return context
     

@@ -90,15 +90,43 @@ def display_project_info():
     project_name = youtrack_config.project_id
     
     # Calculate some basic stats
-    total_issues = len(data_processor.issues_df) if data_processor.issues_df is not None else 0
-    open_issues = data_processor.issues_df[data_processor.issues_df['resolved'].isna()].shape[0] if data_processor.issues_df is not None else 0
-    resolved_issues = total_issues - open_issues
+    try:
+        if data_processor.issues_df is not None and not data_processor.issues_df.empty:
+            total_issues = len(data_processor.issues_df)
+            
+            # Check if 'resolved' column exists
+            if 'resolved' in data_processor.issues_df.columns:
+                open_issues = data_processor.issues_df[data_processor.issues_df['resolved'].isna()].shape[0]
+                resolved_issues = total_issues - open_issues
+            else:
+                open_issues = total_issues  # Assume all are open if no resolved column
+                resolved_issues = 0
+        else:
+            total_issues = 0
+            open_issues = 0
+            resolved_issues = 0
+    except Exception as e:
+        logger.error(f"Error calculating issue stats: {str(e)}", exc_info=True)
+        total_issues = 0
+        open_issues = 0
+        resolved_issues = 0
     
     # Status information
-    if data_processor.custom_fields_df is not None:
-        status_field = data_processor.custom_fields_df[data_processor.custom_fields_df['field_name'] == 'State']
-        status_count = status_field['field_value'].value_counts().to_dict()
-    else:
+    try:
+        if (data_processor.custom_fields_df is not None and 
+            not data_processor.custom_fields_df.empty and
+            'field_name' in data_processor.custom_fields_df.columns and
+            'field_value' in data_processor.custom_fields_df.columns):
+            
+            status_field = data_processor.custom_fields_df[data_processor.custom_fields_df['field_name'] == 'State']
+            if not status_field.empty:
+                status_count = status_field['field_value'].value_counts().to_dict()
+            else:
+                status_count = {}
+        else:
+            status_count = {}
+    except Exception as e:
+        logger.error(f"Error getting status counts: {str(e)}", exc_info=True)
         status_count = {}
     
     # Display information
@@ -124,6 +152,8 @@ def display_project_info():
         }).sort_values('Count', ascending=False)
         
         st.dataframe(status_df, use_container_width=True)
+    else:
+        st.info("No status breakdown available. Try refreshing the data from YouTrack.")
 
 def display_data_freshness():
     """Display information about data freshness."""
@@ -145,20 +175,48 @@ def generate_ai_insights():
     data_processor = st.session_state.data_processor
     ai_generator = st.session_state.ai_insights_generator
     
+    # Check if we have sufficient data for AI insights
+    if (data_processor.issues_df is None or 
+        data_processor.issues_df.empty or 
+        len(data_processor.issues_df) < 5):  # Need at least a few issues for meaningful insights
+        
+        st.session_state.daily_insights = {
+            "error": "Insufficient data for AI insights. Please ensure you have successfully loaded project data with at least 5 issues."
+        }
+        st.session_state.trend_analysis = {"error": "Insufficient data for trend analysis."}
+        st.session_state.followup_questions = []
+        return
+    
     # Daily report
     if st.session_state.daily_insights is None:
         with st.spinner("Generating AI insights..."):
-            st.session_state.daily_insights = ai_generator.generate_daily_report(data_processor)
+            try:
+                st.session_state.daily_insights = ai_generator.generate_daily_report(data_processor)
+            except Exception as e:
+                logger.error(f"Error generating daily insights: {str(e)}", exc_info=True)
+                st.session_state.daily_insights = {
+                    "error": f"Failed to generate AI insights: {str(e)}"
+                }
     
     # Trend analysis
     if st.session_state.trend_analysis is None:
         with st.spinner("Analyzing issue trends..."):
-            st.session_state.trend_analysis = ai_generator.analyze_issue_trends(data_processor)
+            try:
+                st.session_state.trend_analysis = ai_generator.analyze_issue_trends(data_processor)
+            except Exception as e:
+                logger.error(f"Error analyzing trends: {str(e)}", exc_info=True)
+                st.session_state.trend_analysis = {
+                    "error": f"Failed to analyze trends: {str(e)}"
+                }
     
     # Follow-up questions
     if st.session_state.followup_questions is None:
         with st.spinner("Generating follow-up questions..."):
-            st.session_state.followup_questions = ai_generator.generate_followup_questions(data_processor)
+            try:
+                st.session_state.followup_questions = ai_generator.generate_followup_questions(data_processor)
+            except Exception as e:
+                logger.error(f"Error generating follow-up questions: {str(e)}", exc_info=True)
+                st.session_state.followup_questions = []
 
 def display_ai_insights():
     """Display AI-powered insights."""
@@ -169,42 +227,56 @@ def display_ai_insights():
         st.info("AI insights are being generated... This may take a moment.")
         return
         
-    if "error" in st.session_state.daily_insights:
+    if isinstance(st.session_state.daily_insights, dict) and "error" in st.session_state.daily_insights:
         st.error(st.session_state.daily_insights["error"])
+        st.warning("To use AI insights, make sure you have valid project data loaded. Try refreshing the data or checking your API token.")
+        
+        # Still show the refresh button
+        if st.button("Try Again with AI Insights"):
+            st.session_state.daily_insights = None
+            st.session_state.trend_analysis = None
+            st.session_state.followup_questions = None
+            generate_ai_insights()
+            st.rerun()
         return
     
     # Executive Summary
-    if "executive_summary" in st.session_state.daily_insights:
+    if isinstance(st.session_state.daily_insights, dict) and "executive_summary" in st.session_state.daily_insights:
         st.subheader("Executive Summary")
         st.write(st.session_state.daily_insights["executive_summary"])
+    else:
+        st.info("No executive summary available. The AI model may not have generated this section.")
     
     # Show the sections in expandable sections
     with st.expander("Key Metrics", expanded=False):
-        if "key_metrics" in st.session_state.daily_insights:
+        if isinstance(st.session_state.daily_insights, dict) and "key_metrics" in st.session_state.daily_insights:
             st.markdown(st.session_state.daily_insights["key_metrics"])
         else:
             st.info("No key metrics analysis available.")
     
     with st.expander("Risks & Bottlenecks", expanded=False):
-        if "risks_bottlenecks" in st.session_state.daily_insights:
+        if isinstance(st.session_state.daily_insights, dict) and "risks_bottlenecks" in st.session_state.daily_insights:
             st.markdown(st.session_state.daily_insights["risks_bottlenecks"])
         else:
             st.info("No risks analysis available.")
     
     with st.expander("Recommendations", expanded=False):
-        if "recommendations" in st.session_state.daily_insights:
+        if isinstance(st.session_state.daily_insights, dict) and "recommendations" in st.session_state.daily_insights:
             st.markdown(st.session_state.daily_insights["recommendations"])
         else:
             st.info("No recommendations available.")
     
     with st.expander("Team Performance", expanded=False):
-        if "team_performance" in st.session_state.daily_insights:
+        if isinstance(st.session_state.daily_insights, dict) and "team_performance" in st.session_state.daily_insights:
             st.markdown(st.session_state.daily_insights["team_performance"])
         else:
             st.info("No team performance analysis available.")
     
     # Follow-up questions
-    if st.session_state.followup_questions and len(st.session_state.followup_questions) > 0:
+    if (st.session_state.followup_questions and 
+        isinstance(st.session_state.followup_questions, list) and 
+        len(st.session_state.followup_questions) > 0):
+        
         st.subheader("Follow-up Questions")
         for question in st.session_state.followup_questions:
             st.markdown(f"• {question}")

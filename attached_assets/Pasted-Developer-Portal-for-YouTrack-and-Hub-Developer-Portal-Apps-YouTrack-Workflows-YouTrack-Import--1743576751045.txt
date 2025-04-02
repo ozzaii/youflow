@@ -1,0 +1,231 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+Custom Fields in REST API
+Custom Fields in REST API﻿
+Last modified: 11 March 2025
+This page describes the hierarchy of custom fields in YouTrack and how the CustomField, ProjectCustomField, and IssueCustomField entities differ from each other.
+CustomField﻿
+CustomField is an entity that defines a common custom field which contains basic attributes like name and fieldType. The instances property contains the settings for this field in different projects.
+For the complete list of the CustomField attributes, see CustomField.
+The following sample shows how to get all custom fields in YouTrack. By default, YouTrack returns only the $type attribute of the requested entities. To get more information about custom fields, we explicitly provide a list of returned entity attributes in the fields parameter of the request. The $type attribute will appear in the response regardless of whether you specify it explicitly or not.
+Sample Request﻿
+curl -X GET \
+'https://example.youtrack.cloud/api/admin/customFieldSettings/customFields?fields=id,name,aliases,instances(id,project(id,name))' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:am9obi5kb2U=.UG9zdG1hbiBKb2huIERvZQ==.jJe0eYhhkV271j1lCpfknNYOEakNk7' \
+-H 'Cache-Control: no-cache' \
+-H 'Content-Type: application/json'
+Sample Response Body﻿
+[
+    ...
+    {
+        "name": "Priority",
+        "aliases": null,
+        "instances": [
+            {
+                "project": {
+                    "name": "Sample Project",
+                    "id": "0-0",
+                    "$type": "Project"
+                },
+                "id": "92-1",
+                "$type": "EnumProjectCustomField"
+            },
+            ...
+        ],
+        "id": "58-1",
+        "$type": "CustomField"
+    },
+    ...
+    {
+        "name": "Assignee",
+        "aliases": "for, assigned to",
+        "instances": [
+            {
+                "project": {
+                    "name": "Sample Project",
+                    "id": "0-0",
+                    "$type": "Project"
+                },
+                "id": "94-0",
+                "$type": "UserProjectCustomField"
+            },
+            ...
+        ],
+        "id": "58-4",
+        "$type": "CustomField"
+    },
+    ...
+]
+ProjectCustomField﻿
+ProjectCustomField is an entity that contains settings of a CustomField (the field attribute) in a particular project (project), such as the set of possible values (bundle), whether the field can be empty or not (canBeEmpty), and so on.
+For the complete list of the ProjectCustomField attributes, see ProjectCustomField.
+The following sample shows how to get all custom fields with their settings in a particular project.
+Sample Request﻿
+curl -X GET \
+'https://example.youtrack.cloud/api/admin/projects/0-0/customFields?fields=id,canBeEmpty,emptyFieldText,project(id,name),field(id,name)' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:am9obi5kb2U=.UG9zdG1hbiBKb2huIERvZQ==.jJe0eYhhkV271j1lCpfknNYOEakNk7' \
+-H 'Cache-Control: no-cache' \
+-H 'Content-Type: application/json'
+Sample Response Body﻿
+[
+    ...
+    {
+        "field": {
+            "name": "Priority",
+            "id": "58-1",
+            "$type": "CustomField"
+        },
+        "project": {
+            "name": "Sample Project",
+            "id": "0-0",
+            "$type": "Project"
+        },
+        "emptyFieldText": "No Priority",
+        "canBeEmpty": false,
+        "id": "92-1",
+        "$type": "EnumProjectCustomField"
+    },
+    ...
+    {
+        "field":{
+            "id":"58-4",
+            "name":"Assignee",
+            "$type":"CustomField"
+        },
+        "project": {
+            "name": "Sample Project",
+            "id": "0-0",
+            "$type": "Project"
+        },
+        "emptyFieldText":"Unassigned",
+        "canBeEmpty":true,
+        "id":"94-0",
+        "$type":"UserProjectCustomField"
+},
+    ...
+]
+IssueCustomField﻿
+The IssueCustomField entity contains the value (the value attribute) of a ProjectCustomField (projectCustomField) in a particular issue. The value can be a simple one (for example, string or integer), a link to an existing entity (a link to a specific user for the Assignee field), or a collection of values (the Affected versions field).
+For the complete list of the IssueCustomField attributes, see IssueCustomField.
+The following sample shows how to get all custom fields with their values in a particular issue.
+Sample Request﻿
+curl -X GET \
+'https://example.youtrack.cloud/api/issues/2-7/customFields?fields=id,value(id,name,login,fullName),projectCustomField(id,field(id,name))' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:am9obi5kb2U=.UG9zdG1hbiBKb2huIERvZQ==.jJe0eYhhkV271j1lCpfknNYOEakNk7' \
+-H 'Cache-Control: no-cache' \
+-H 'Content-Type: application/json'
+Sample Response Body﻿
+[
+    {
+        "projectCustomField": {
+            "field": {
+                "name": "Priority",
+                "id": "58-1",
+                "$type": "CustomField"
+            },
+            "id": "92-1",
+            "$type": "EnumProjectCustomField"
+        },
+        "value": {
+            "name": "Major",
+            "id": "67-2",
+            "$type": "EnumBundleElement"
+        },
+        "id": "92-1",
+        "$type": "SingleEnumIssueCustomField"
+    },
+    ...
+    {
+        "projectCustomField": {
+            "field": {
+                "name": "Assignee",
+                "id": "58-4",
+                "$type": "CustomField"
+            },
+            "id": "94-0",
+            "$type": "UserProjectCustomField"
+        },
+        "value":{
+            "name": "Jane Doe",
+            "fullName": "Jane Doe",
+            "login": "jane.doe",
+            "id": "1-3",
+            "$type": "User"
+        },
+        "id": "94-0",
+        "$type": "SingleUserIssueCustomField"
+    },
+    ...
+]
+$type Mapping for Custom Fields﻿
+The following table shows the mapping between supported issue custom fields and their corresponding $type values. You must provide the $type value in the POST request when you need to set or update a custom field in an issue.
+Custom Field Type
+IssueCustomField $type
+ProjectCustomField $type
+enum[1]	SingleEnumIssueCustomField	EnumProjectCustomField
+enum[*]	MultiEnumIssueCustomField	EnumProjectCustomField
+build[1]	SingleBuildIssueCustomField	BuildProjectCustomField
+build[*]	MultiBuildIssueCustomField	BuildProjectCustomField
+state[1]	StateIssueCustomField	StateProjectCustomField
+version[1]	SingleVersionIssueCustomField	VersionProjectCustomField
+version[*]	MultiVersionIssueCustomField	VersionProjectCustomField
+ownedField[1]	SingleOwnedIssueCustomField	OwnedProjectCustomField
+ownedField[*]	MultiOwnedIssueCustomField	OwnedProjectCustomField
+user[1]	SingleUserIssueCustomField	UserProjectCustomField
+user[*]	MultiUserIssueCustomField	UserProjectCustomField
+group[1]	SingleGroupIssueCustomField	GroupProjectCustomField
+group[*]	MultiGroupIssueCustomField	GroupProjectCustomField
+integer	SimpleIssueCustomField	SimpleProjectCustomField
+float	SimpleIssueCustomField	SimpleProjectCustomField
+date	DateIssueCustomField	SimpleProjectCustomField
+date and time	SimpleIssueCustomField	SimpleProjectCustomField
+period	PeriodIssueCustomField	PeriodProjectCustomField
+string	SimpleIssueCustomField	SimpleProjectCustomField
+text	TextIssueCustomField	TextProjectCustomField
+Custom Fields in REST API
+CustomField
+Sample Request
+Sample Response Body
+ProjectCustomField
+Sample Request
+Sample Response Body
+IssueCustomField
+Sample Request
+Sample Response Body
+$type Mapping for Custom Fields
+Was this page helpful?
+YesNo
+Request Headers
+Pagination
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.

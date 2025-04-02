@@ -1,0 +1,57 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+OpenAPI Specification (OAS)
+OpenAPI Specification (OAS)﻿
+Last modified: 11 March 2025
+We're using Swagger to generate and publish an OpenAPI Specification (OAS) document for the YouTrack REST API. This richly annotated OAS 3.0 definition is produced in JSON format. This artifact is designed to be fed into interactive API consoles and used to build client libraries for developing external applications that integrate with YouTrack.
+The OAS 3.0 definition is compatible with tools like Swagger, Open API Generator, and Postman. These tools give you the ability to work with the API in different ways:
+Interact with the API in a sandbox UI that helps you understand how the API responds to different parameters and options.
+View and test each resource before using it in your codebase.
+Generate client libraries in your preferred programming language.
+Accessing the OpenAPI Specification﻿
+The OAS 3.0 definition is published to the following web address:
+<YouTrack Service URL>/api/openapi.json
+The <YouTrack Service URL> is the base URL of the YouTrack service in your network environment or the base URL of your YouTrack Cloud. For more details about the base URL and the REST API URL, see REST API URL and Endpoints.
+Below you can find examples of OAS definition URLs for different YouTrack setups:
+YouTrack Server
+YouTrack Cloud
+YouTrack Service URL
+OAS Definition URL
+https://www.example.com/youtrack	https://www.example.com/youtrack/api/openapi.json
+https://youtrack.example.com	https://youtrack.example.com/api/openapi.json
+In any case, all you need to do to access the OpenAPI Specification is add /api/openapi.json to the address that is set up as the base URL for your YouTrack.
+OpenAPI Specification (OAS)
+Accessing the OpenAPI Specification
+Was this page helpful?
+YesNo
+REST API URL and Endpoints
+Fields Syntax
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.

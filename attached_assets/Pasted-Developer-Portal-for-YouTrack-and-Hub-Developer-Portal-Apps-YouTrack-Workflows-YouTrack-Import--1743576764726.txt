@@ -1,0 +1,77 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+Fields Syntax
+Fields Syntax﻿
+Last modified: 11 March 2025
+In YouTrack REST API, when you send an HTTP request to a resource, by default, the server sends back only the database ID and $type of the resource entity. To receive an attribute in the response from server, you must specify it explicitly in the fields parameter of a request.
+Let's see how it works on a sample request for the current user account.
+Samples﻿
+Request without Fields Parameter﻿
+Here we use a default request without providing the fields parameter.
+Request
+curl -X GET 'https://example.youtrack.cloud/api/users/me' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:am9obi5kb2U=.UG9zdG1hbiBKb2huIERvZQ==.jJe0eYhhkV271j1lCpfknNYOEakNk7' \
+-H 'Cache-Control: no-cache'
+Response body
+In response, the server sends the entity ID:
+{
+  "id": "1-2"
+}
+Request with Fields Parameter﻿
+Here we use the fields request parameter to specify explicitly which attributes of the entity should be returned in the response body: id, login, name, and email of the current user.
+Request
+curl -X GET \
+'https://example.youtrack.cloud/api/users/me?fields=id,login,name,email' \
+-H 'Accept: application/json' \
+-H 'Authorization: Bearer perm:am9obi5kb2U=.UG9zdG1hbiBKb2huIERvZQ==.jJe0eYhhkV271j1lCpfknNYOEakNk7' \
+-H 'Cache-Control: no-cache'
+Response body
+In response, the server sends the requested attributes:
+{
+  "email": "john.doe@example.com",
+  "login": "john.doe",
+  "name": "John Doe",
+  "id": "1-2"
+}
+Fields Syntax
+Samples
+Request without Fields Parameter
+Request
+Response body
+Request with Fields Parameter
+Request
+Response body
+Was this page helpful?
+YesNo
+OpenAPI Specification (OAS)
+Query Syntax
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.

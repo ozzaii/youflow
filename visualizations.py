@@ -239,10 +239,18 @@ def create_status_flow_sankey(status_changes: pd.DataFrame) -> go.Figure:
     Returns:
         Plotly figure object
     """
-    # If no data, return empty figure
-    if status_changes.empty:
+    # Check if dataframe is empty or missing required columns
+    if status_changes.empty or 'removed' not in status_changes.columns or 'added' not in status_changes.columns:
         fig = go.Figure()
-        fig.update_layout(title='No status transition data available')
+        fig.update_layout(
+            title='No Status Transition Data Available',
+            annotations=[dict(
+                text="No status transition data available to display",
+                showarrow=False,
+                xref="paper", yref="paper",
+                x=0.5, y=0.5
+            )]
+        )
         return fig
     
     # Create pairs of from_status -> to_status
@@ -250,6 +258,20 @@ def create_status_flow_sankey(status_changes: pd.DataFrame) -> go.Figure:
     for _, row in status_changes.iterrows():
         if pd.notna(row['removed']) and pd.notna(row['added']):
             flow_data.append((row['removed'], row['added']))
+    
+    # If no valid transitions, return empty figure
+    if not flow_data:
+        fig = go.Figure()
+        fig.update_layout(
+            title='No Valid Status Transitions Found',
+            annotations=[dict(
+                text="No valid status transitions found in the data",
+                showarrow=False,
+                xref="paper", yref="paper",
+                x=0.5, y=0.5
+            )]
+        )
+        return fig
     
     # Count occurrences of each transition
     flow_counts = pd.Series(flow_data).value_counts().reset_index()

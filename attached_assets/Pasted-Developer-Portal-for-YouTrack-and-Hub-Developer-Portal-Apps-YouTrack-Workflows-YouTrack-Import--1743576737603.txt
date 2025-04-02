@@ -1,0 +1,78 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+Postman Collection for the YouTrack REST API
+Postman Collection for the YouTrack REST API﻿
+Last modified: 11 March 2025
+We have gathered a set of YouTrack REST API requests in a YouTrack Postman collection. This collection consists of predefined YouTrack REST API requests and examples for these requests.
+Postman is a tool that helps you make REST API requests with minimum effort. With the YouTrack Postman collection, you can get quickly started with the YouTrack REST API and begin interacting with your YouTrack programmatically.
+Prerequisites﻿
+Before you start making requests to YouTrack with Postman, do the following:
+Create a permanent token for your YouTrack account. You will need a token to make REST API requests to YouTrack.
+Create a free account at the postman.com website. You will need this account to fork the YouTrack collection to your workspace.
+Send API Requests with Postman﻿
+Postman tool is available in web and desktop versions. This tutorial focuses on the web interface of Postman.
+To send REST API requests with Postman, first, you need to fork the YouTrack collection to your personal workspace and set it up.
+To set up a collection fork in Postman:﻿
+Log in to the postman.com website and follow the link to the YouTrack Postman workspace.
+YouTrack Postman workspace
+In the panel on the left, select View more actions > Create a fork.
+Create a fork of the YouTrack Postman collection
+In the Fork collection dialog window, enter the label for your fork and select the workspace where you want to fork the collection.
+Check the Watch original collection box if you want to receive notifications about changes in the original collection.
+Create a fork of the YouTrack Postman collection
+Click the Fork Collection button.
+Your personal copy of the YouTrack Postman collection opens.
+Create a fork of the YouTrack Postman collection
+Switch to the Variables tab and update the values for the main collection variables. Update the values in the Current value column of the table. For more details on sharing and persisting variable values in Postman, see the Postman reference.
+Variable
+Value
+baseUrl	
+Enter the Base REST API URL of your YouTrack service. For more info, see REST API URL and Endpoints.
+token	
+The permanent token for the user account that you use to log in to YouTrack. For more info on how to create a permanent token, see Create a Permanent Token.
+These two variables are the minimum that you need to start making requests to the YouTrack REST API. Once you've set these two variables, you're ready to go and send your first request.
+For some requests, you're going to need additional IDs of YouTrack entities. Refer to the collection documentation and to the YouTrack REST API documentation to learn how to find these IDs.
+Once you've updated the variables, click the Save button in the upper-right corner.
+Create a fork of the YouTrack Postman collection
+You have created and set up a personal copy of the YouTrack Postman collection.
+Now that you have set up your personal collection copy, you're ready to make requests with Postman.
+To make a request, locate it in the tree on the left, make sure that you have set all the variables needed for this request, and click the Send button.
+The result of sending a request in Postman
+Each request in the YouTrack Postman collection has one or several samples linked to it. Check these samples for more information about the request, required request body, the expected result, and other details.
+To learn more about working with Postman collections, refer to the Postman documentation.
+Postman Collection for the YouTrack REST API
+Prerequisites
+Send API Requests with Postman
+Was this page helpful?
+YesNo
+Users, Groups, and Access Management
+REST API Reference
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.

@@ -1,0 +1,51 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+Request Headers
+Request Headers﻿
+Last modified: 11 March 2025
+This page covers main HTTP request headers that are used in YouTrack REST API. HTTP headers basically describe the API request and the data it contains or expects to be returned.
+Header
+Description
+Authorization	
+This header provides the authorization data for the request. Here is an example of an Authorization header using a Bearer token:
+'Authorization: Bearer perm:am9obi5kb2U=.UG9zdG1hbiBKb2huIERvZQ==.jJe0eYhhkV271j1lCpfknNYOEakNk7'
+If you don't provide an Authorization header, YouTrack makes the request on behalf of the guest user account. If the guest account is banned, the request will return an error. For more details about the guest user, see Managing Guest User.
+For details about supported authorization methods, read Log in to YouTrack.
+Accept	
+This header defines in which format you expect the response body to be returned by the server. Provide this header for GET methods, or if you request entity attributes in the fields request parameter for any other method, then also provide this header. YouTrack supports JSON format for returned data. That is, use 'Accept: application/json'.
+Content-Type	
+This header defines in which format you send request payload data to the server. Provide this header for POST and PUT methods. YouTrack supports JSON format for the request payload data. That is, use 'Content-Type: application/json'.
+For attachments, YouTrack also supports other types for the Content-Type header. See examples on the Attach Files to an Issue page.
+Was this page helpful?
+YesNo
+Query Syntax
+Custom Fields in REST API
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.

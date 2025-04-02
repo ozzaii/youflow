@@ -1,0 +1,133 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+Users, Groups, and Access Management
+Users, Groups, and Access Management﻿
+Last modified: 11 March 2025
+This page covers differences in available operations for users, groups, and access management in YouTrack REST API versus Hub REST API.
+In YouTrack, the entities "User" and "UserGroup" represent users and groups in YouTrack and YouTrack only, and have a service function: you need to be able to read and retrieve at least their basic attributes, like id or name, to execute other methods. For example, to change visibility of an issue or a comment. Because of that, all attributes are read-only and cannot be changed with the help of YouTrack REST API.
+The reason is that any YouTrack instance as a product basically contains two services:
+YouTrack service - a service that is the issue tracker itself.
+Hub service - the authorization and authentication service that also manages user accounts and everything that relates to the access management.
+In this structure, the "User" entity in YouTrack represents the profile of a Hub user account in the service "YouTrack". The same goes for user groups. These entities in YouTrack contain all attributes that are necessary for performing operations with YouTrack REST API.
+However, any operation that relates to authentication or access management is controlled by Hub service and must be performed with the Hub REST API. That is, if you need to change user email, or add a user to a group, or grant a role to a user - you must use Hub REST API.
+You can find all methods that Hub REST API provides in this detailed reference. We also urge you to read the Hub REST API guide before you start working with the reference.
+The one question that remains is how do you find a user account in Hub that matches particular user in YouTrack.
+Find YouTrack User in Hub﻿
+As we said before, when you need to perform an operation that is related to authentication or access management you must use the Hub REST API. This is how you can find a user account in Hub that matches the target YouTrack's user profile.
+In general, this procedure contains two steps:
+Get the key attributes of the target YouTrack user: login, email, ringId. You can use any of these attributes to find the required user account in Hub.
+You can use any of the following endpoints:
+<YouTrack_BaseURL>/api/users?fields=login,email,name,ringId
+<YouTrack_BaseURL>/api/users/:login?fields=login,email,name,ringId, if you know the login of the target user.
+<YouTrack_BaseURL>/api/users/:id?fields=login,email,name,ringId, if you already know the entity ID of the target user.
+To find the target user account in Hub, you need to get the list of users and filter it using the query request parameter with the name of the Hub entity attribute and the value of the relevant YouTrack entity attribute:
+YouTrack entity attribute
+Hub entity attribute
+login	login
+email	email
+ringId	id
+To get the list of users in Hub, use the following endpoint:
+<Hub_BaseURL>/api/rest/users?query=[login:user_login|email:user_email|id:ringId_value]
+YouTrack and Hub Base URL
+These base URLs that we mentioned are the base URLs of the YouTrack service and Hub service respectively. For example, if you use a YouTrack Cloud instance:
+https://example.youtrack.cloud
+https://example.youtrack.cloud/hub
+If you use a YouTrack Server installation:
+https://companyname.com/youtrack
+https://companyname.com/hub
+Read more details about Hub REST API URL and YouTrack REST API URL.
+Sample procedure﻿
+Here's a list of sample calls to illustrate the procedure.
+To start, let's get the key attributes of a user with the login "jane.doe":
+curl --location --request GET
+'https://example.youtrack.cloud/api/users/jane.doe?fields=id,login,name,email,ringId' \
+--header 'Content-Type: application/json' \
+--header 'Accept: application/json' \
+--header 'Authorization: Bearer perm:am9obi5kb2U=.UG9zdG1hbiBKb2huIERvZQ==.jJe0eYhhkV271j1lCpfknNYOEakNk7'
+In response we get the following JSON object:
+{
+  "email": "jane.doe@example.com",
+  "ringId": "90704ebe-c211-4906-a328-4f16ca82a5ea",
+  "name": "Jane Doe",
+  "login": "jane.doe",
+  "id": "1-3",
+  "$type": "User"
+}
+Now, let's find this user account in Hub. For the sample purpose we use all three variants of the query. In real life, you can use any of them. Using the ringId gives the most reliable results.
+Please note that in Hub REST API, server returns all attributes of an entity, by default. Use the fields parameter to explicitly specify the attributes that you wish to get in the response. Read more about Hub Partial Requests.
+Filter by the ringId value:
+curl --location --request GET
+'https://example.youtrack.cloud/hub/api/rest/users?query=id:90704ebe-c211-4906-a328-4f16ca82a5ea&fields=login,id,name,profile(email)' \
+--header 'Content-Type: application/json' \
+--header 'Accept: application/json' \
+--header 'Authorization: Bearer perm:cm9vdA==.QWRtaW4gUmVzdCBBUEkgRG9jcw==.OcsxZrnZnBZhyWaGE0Uz1OiA5bRVNt'
+Filter by the login value:
+curl --location --request GET
+'https://example.youtrack.cloud/hub/api/rest/users?query=login:jane.doe&fields=login,id,name,profile(email)' \
+--header 'Content-Type: application/json' \
+--header 'Accept: application/json' \
+--header 'Authorization: Bearer perm:cm9vdA==.QWRtaW4gUmVzdCBBUEkgRG9jcw==.OcsxZrnZnBZhyWaGE0Uz1OiA5bRVNt'
+Filter by the email value:
+curl --location --request GET
+'https://example.youtrack.cloud/hub/api/rest/users?query=email:jane.doe@example.com&fields=login,id,name,profile(email)' \
+--header 'Content-Type: application/json' \
+--header 'Accept: application/json' \
+--header 'Authorization: Bearer perm:cm9vdA==.QWRtaW4gUmVzdCBBUEkgRG9jcw==.OcsxZrnZnBZhyWaGE0Uz1OiA5bRVNt'
+All these requests produce the same result, returning the following data in the response:
+{
+  "skip": 0,
+  "top": 100,
+  "total": 1,
+  "queriedSingleton": true,
+  "users": [
+    {
+      "type": "user",
+      "id": "90704ebe-c211-4906-a328-4f16ca82a5ea",
+      "name": "Jane Doe",
+      "login": "jane.doe",
+      "profile": {
+        "email": {
+          "type": "EmailJSON",
+          "verified": true,
+          "email": "jane.doe@example.com"
+        }
+      }
+    }
+  ]
+}
+Users, Groups, and Access Management
+Find YouTrack User in Hub
+Sample procedure
+Was this page helpful?
+YesNo
+Pagination
+Postman Collection for the YouTrack REST API
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.

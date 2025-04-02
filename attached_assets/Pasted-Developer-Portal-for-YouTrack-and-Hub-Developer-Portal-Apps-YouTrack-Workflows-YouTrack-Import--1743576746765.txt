@@ -1,0 +1,88 @@
+Developer Portal for YouTrack and Hub
+ 
+
+
+
+Developer Portal
+Apps
+YouTrack Workflows
+YouTrack Import Scripts
+YouTrack Form API
+YouTrack REST API
+Get Started with REST API
+Log in to YouTrack
+REST API URL and Endpoints
+OpenAPI Specification (OAS)
+Fields Syntax
+Query Syntax
+Request Headers
+Custom Fields in REST API
+Pagination
+Users, Groups, and Access Management
+Postman Collection for the YouTrack REST API
+REST API Reference
+REST API Use Cases
+REST API Troubleshooting
+Color Indices List
+Hub REST API
+YouTrack REST API
+Get Started with REST API
+Pagination
+Pagination﻿
+Last modified: 11 March 2025
+This page describes pagination options in the YouTrack REST API.
+All resources that return collections of entities limit the number of returned entities by default. If you do not explicitly specify the number of entities to return with the $top query parameter, the server returns a part of the collection.
+For most resources, the server returns a maximum of 42 elements by default. To get the entire collection, you need to use pagination.
+There are two pagination options that the YouTrack REST API utilizes:
+The vast majority of resources use pagination with $top and $skip query parameters. To learn more about these parameters, see General Pagination.
+Resources that work with issue-related activities use cursors for pagination. To learn more about cursors, see Pagination for Activities.
+General Pagination﻿
+When you try to read a large collection of elements, YouTrack returns only the first 42 elements by default. It's a safety measure to eliminate server overload. To get the complete list of elements, use the $skip and $top request parameters:
+$skip=N lets you skip N found elements and returns elements starting from N+1.
+$top=M instructs the server to return a set of top M elements found.
+Combining these two parameters, you can iterate through the entire collection of elements that you need. For example, you can iterate through a list of available issues in, let's say, packs of 50 elements:
+https://example.youtrack.cloud/api/issues?fields=id,idReadable,summary,description&$skip=0&$top=50
+https://example.youtrack.cloud/api/issues?fields=id,idReadable,summary,description&$skip=50&$top=50
+https://example.youtrack.cloud/api/issues?fields=id,idReadable,summary,description&$skip=100&$top=50
+Alternatively, you can iterate a large collection of versions in a bundle in packs of, let's say, 20 elements:
+https://example.youtrack.cloud/api/admin/customFieldSettings/bundles/version/42-1/values?$skip=0&$top=20&fields=archived,description,id,name,ordinal,releaseDate,released
+https://example.youtrack.cloud/api/admin/customFieldSettings/bundles/version/42-1/values?$skip=20&$top=20&fields=archived,description,id,name,ordinal,releaseDate,released
+https://example.youtrack.cloud/api/admin/customFieldSettings/bundles/version/42-1/values?$skip=40&$top=20&fields=archived,description,id,name,ordinal,releaseDate,released
+Pagination for Activities﻿
+The Activities is a frequently changing collection, and new activities might be created between two consecutive requests. The general pagination method with $top and $skip parameters does not work in this case. Instead, we implemented the cursor parameter to paginate the activity stream.
+The main application for cursors is the pagination of activities. Instead of using the $top and $skip parameters, use the following pagination approach:
+Request a page using one of the activitiesPage resources.
+Take one of the cursors from the returned activity page.
+Put this value as the cursor parameter for the request of the next page.
+If the cursor is not specified in the request, the response page starts either from the oldest activity or the newest one, depending on the requested order (direct or reverse).
+Use Case﻿
+Let's consider the following statements as initial conditions for the example:
+There is a collection of four activity items: A, B, C, and D.
+A request has been made that returned a page containing only 1 item: [B].
+The following JSON presents the mentioned page:
+{
+    "activities": [B]
+    "cursorBefore": "A^B" // the value differs from the real one and is only used for the demonstration
+    "cursorAfter": "B^C" // the value differs from the real one and is only used for the demonstration
+    "hasBefore": true
+    "hasAfter": true
+    "reverse": false
+}
+A request to the following endpoint could receive such a page:
+/api/activitiesPage?activityId=B&${'$'}top=1
+The real value of the cursor is a complication string. Used notation "A^B" shows that the cursor points to the gap between items A and B.
+To request nearby pages of activities, we can use the cursors of the received page and request the page starting from the cursor to different directions. The following combinations are possible:
+Request /api/activitiesPage?${'$'}top=100&cursor=A^B&reverse=false returns a page with [B, C, D] items.
+Request /api/activitiesPage?${'$'}top=100&cursor=A^B&reverse=true returns a page with [A] item.
+Request /api/activitiesPage?${'$'}top=100&cursor=B^C&reverse=false returns a page with [C, D] items.
+Request /api/activitiesPage?${'$'}top=100&cursor=B^C&reverse=true returns a page with [B, A] items.
+Pagination
+General Pagination
+Pagination for Activities
+Use Case
+Was this page helpful?
+YesNo
+Custom Fields in REST API
+Users, Groups, and Access Management
+Contact us
+Copyright © 2000–2025 JetBrains s.r.o.
