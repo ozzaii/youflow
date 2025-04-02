@@ -116,9 +116,10 @@ class YouTrackAPI:
         
         field_param = ",".join(fields)
         
-        # According to YouTrack REST API documentation
-        # For project IDs, we should use project ID exactly as is without quotes
-        project_query = f"project: {{{self.project_id}}}"
+        # According to YouTrack REST API documentation and project listing
+        # For our target project, we should use the short name instead of ID
+        project_short_name = "EISMMABSW"  # Shortname for "MQ EIS/KG BSW (Mercedes)"
+        project_query = f"project: {project_short_name}"
         
         params = {
             "fields": field_param,
