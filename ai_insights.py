@@ -752,10 +752,13 @@ class AIInsightsGenerator:
             
             # Check if any data is available before attempting to parse
             project_stats = context.get('project_stats', {})
-            if (project_stats.get('total_issues', 0) == 0 or 
-                not context.get('status_distribution') or 
-                not context.get('assignee_workload')):
-                
+            
+            # Improved condition to handle empty lists differently than missing data
+            has_no_issues = project_stats.get('total_issues', 0) == 0
+            missing_status_data = 'status_distribution' not in context
+            missing_assignee_data = 'assignee_workload' not in context
+            
+            if has_no_issues or missing_status_data:
                 # Create a basic summary from the limited available data
                 sections = {
                     "executive_summary": "Limited data is available for analysis. Please refresh the data or check API connection settings.",
@@ -980,10 +983,8 @@ class AIInsightsGenerator:
             if "429" in error_message and "quota" in error_message:
                 logger.warning("Gemini API rate limit exceeded for trend analysis")
                 
-                # Check if trend_data was created before the error
+                # Simply return an empty array - no need to check for trend_data
                 trend_data_to_return = []
-                if 'trend_data' in locals():
-                    trend_data_to_return = trend_data
                 
                 return {
                     "error": "API rate limit exceeded. Please try again later.",
