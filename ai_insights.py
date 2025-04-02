@@ -736,6 +736,12 @@ class AIInsightsGenerator:
             Analyze this data and provide insights based on the structure described in the system prompt.
             """
             
+            # Log the full context for debugging
+            logger.info(f"Sending context to Gemini API with {len(json.dumps(context))} characters")
+            with open("debug_gemini_context.json", "w") as f:
+                json.dump(context, f, default=json_serial, indent=2)
+            logger.info("Saved Gemini context to debug_gemini_context.json")
+            
             # Generate insights
             response = self.model.generate_content(
                 [system_prompt, user_prompt],
