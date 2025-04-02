@@ -1,0 +1,62 @@
+
+YouTrack Project: 0-9
+Total Issues
+
+1658
+Open Issues
+
+58
+Resolved Issues
+
+1600
+Issue Status Breakdown
+🧠 AI-Powered Insights
+Executive Summary
+High Number of Stale Issues: 58 stale issues represent 100% of the open issues, indicating a potential bottleneck in the final stages of the project. These issues need immediate review and action.
+Dominant Issue Type: Tasks constitute the majority of issues (1310), followed by Bugs (329), suggesting a focus on feature implementation and bug fixing.
+Status Distribution: "Done" (87.33%) and "Obsolete" (8.14%) statuses dominate, reflecting the project's advanced stage. However, the presence of issues in "To Verify" (1.21%), "In Progress" (0.78%), "To be discussed" (0.72%), "Open" (0.12%), and "Reopened" (0.06%) states requires focused effort.
+Priority Distribution: The vast majority of issues are marked as "Normal" (1487), with a significant number as "Critical" (167). This suggests that while most tasks are routine, there are critical issues that need to be addressed promptly.
+Assignee Workload: The assignee_workload is empty, and top_assignees in closed_issues_summary shows that the assignee is blank for all closed issues. This indicates a lack of proper assignment tracking, making it difficult to assess individual contributions and workload distribution.
+Key Metrics
+
+No detailed metrics could be derived from the current data.
+
+Risks & Bottlenecks
+
+Implement Assignee Tracking: Enforce the proper assignment of issues to individuals. This will enable better workload distribution, performance tracking, and bottleneck identification. Update existing open issues with the correct assignee.
+Address KG Subsystem Bottleneck: Investigate the high number of open issues related to the "KG" subsystem and assigned to Onur Canpolat. Determine if additional resources are needed to alleviate the bottleneck.
+Investigate Date Issues: Investigate why the dates are all showing as 1970-01-01T00:29:03.xxx. This is likely a data issue, and needs to be resolved to get accurate reporting.
+Implement Sprint Planning: Given the lack of sprint data, consider implementing sprint planning to improve predictability and focus on delivering value in short cycles. This will also help in identifying and addressing potential roadblocks early on.
+Recommendations
+
+Review the data quality and completeness to enable better insights.
+
+Team Performance
+
+Team performance analysis requires additional data.
+
+Follow-up Questions
+• 1. Why are the dates showing as 1970-01-01 for created, updated, and resolved fields in the recent issue samples? Is the date tracking system working correctly?
+
+• 2. Why is the average resolution time 0 days, and what is the actual average resolution time for issues in this project?
+
+• 3. What is causing the high number of stale issues (58), and what steps can be taken to address them and prevent future issues from becoming stale?
+
+• 4. The majority of issues are Tasks with Normal priority. Are Critical issues being identified and prioritized appropriately, and is there a risk of overlooking important bugs?
+
+• 5. The recent activity, activity by field, most active users, and sprint statistics are empty. How can we populate these sections to gain better insights into team performance, sprint progress, and user contributions?
+
+
+YouTrack Data Extraction & Visualization System
+Welcome to the YouTrack Analytics Dashboard for the Mercedes "MQ EIS/KG BSW" project. Use the navigation menu to explore different reports and visualizations.
+
+Available Features:
+Dashboard: Overview of project metrics and status
+Reports: Generate and export standardized reports
+Data Explorer: Explore the raw data and custom queries
+Settings: Configure system settings
+AI Insights: AI-powered analysis and recommendations
+Use the "Refresh Data" button in the sidebar to fetch the latest data from YouTrack.
+
+Value	Hakan Mert Kum
+Count	639

@@ -220,7 +220,10 @@ def generate_ai_insights():
 
 def display_ai_insights():
     """Display AI-powered insights."""
-    st.header("🧠 AI-Powered Insights", divider=True)
+    st.header("🧠 AI-Powered Daily Report", divider=True)
+    
+    # Add the date to make it feel like a daily report
+    st.caption(f"Generated on {datetime.now().strftime('%A, %B %d, %Y at %H:%M')}")
     
     # Check if we have insights yet
     if st.session_state.daily_insights is None:
@@ -262,48 +265,83 @@ def display_ai_insights():
         if not ("rate limit" in error_msg.lower() or "429" in error_msg or "quota" in error_msg):
             return
     
-    # Executive Summary
-    if isinstance(st.session_state.daily_insights, dict) and "executive_summary" in st.session_state.daily_insights:
-        st.subheader("Executive Summary")
-        st.write(st.session_state.daily_insights["executive_summary"])
-    else:
-        st.info("No executive summary available. The AI model may not have generated this section.")
+    # First, show a tab interface for both views
+    tab1, tab2 = st.tabs(["📊 Formatted Report", "🔍 Raw AI Output"])
     
-    # Show the sections in expandable sections
-    with st.expander("Key Metrics", expanded=False):
-        if isinstance(st.session_state.daily_insights, dict) and "key_metrics" in st.session_state.daily_insights:
-            st.markdown(st.session_state.daily_insights["key_metrics"])
+    with tab1:
+        # Executive Summary
+        if isinstance(st.session_state.daily_insights, dict) and "executive_summary" in st.session_state.daily_insights:
+            st.subheader("Executive Summary")
+            st.write(st.session_state.daily_insights["executive_summary"])
         else:
-            st.info("No key metrics analysis available.")
-    
-    with st.expander("Risks & Bottlenecks", expanded=False):
-        if isinstance(st.session_state.daily_insights, dict) and "risks_bottlenecks" in st.session_state.daily_insights:
-            st.markdown(st.session_state.daily_insights["risks_bottlenecks"])
-        else:
-            st.info("No risks analysis available.")
-    
-    with st.expander("Recommendations", expanded=False):
+            st.info("No executive summary available. The AI model may not have generated this section.")
+        
+        # Create columns for better layout
+        col1, col2 = st.columns(2)
+        
+        # Key Metrics (directly visible, not in expander)
+        with col1:
+            st.subheader("Key Metrics")
+            if isinstance(st.session_state.daily_insights, dict) and "key_metrics" in st.session_state.daily_insights:
+                st.markdown(st.session_state.daily_insights["key_metrics"])
+            else:
+                st.info("No key metrics analysis available.")
+        
+        # Risks & Bottlenecks (directly visible, not in expander)
+        with col2:
+            st.subheader("Risks & Bottlenecks")
+            if isinstance(st.session_state.daily_insights, dict) and "risks_bottlenecks" in st.session_state.daily_insights:
+                st.markdown(st.session_state.daily_insights["risks_bottlenecks"])
+            else:
+                st.info("No risks analysis available.")
+        
+        # Recommendations (directly visible, not in expander)
+        st.subheader("Recommendations")
         if isinstance(st.session_state.daily_insights, dict) and "recommendations" in st.session_state.daily_insights:
             st.markdown(st.session_state.daily_insights["recommendations"])
         else:
             st.info("No recommendations available.")
-    
-    with st.expander("Team Performance", expanded=False):
-        if isinstance(st.session_state.daily_insights, dict) and "team_performance" in st.session_state.daily_insights:
-            st.markdown(st.session_state.daily_insights["team_performance"])
-        else:
-            st.info("No team performance analysis available.")
-    
-    # Follow-up questions
-    if (st.session_state.followup_questions and 
-        isinstance(st.session_state.followup_questions, list) and 
-        len(st.session_state.followup_questions) > 0):
         
-        st.subheader("Follow-up Questions")
-        for question in st.session_state.followup_questions:
-            st.markdown(f"• {question}")
+        # Team Performance in an expander
+        with st.expander("Team Performance", expanded=False):
+            if isinstance(st.session_state.daily_insights, dict) and "team_performance" in st.session_state.daily_insights:
+                st.markdown(st.session_state.daily_insights["team_performance"])
+            else:
+                st.info("No team performance analysis available.")
     
-    # Add a refresh button
+        # Follow-up questions
+        if (st.session_state.followup_questions and 
+            isinstance(st.session_state.followup_questions, list) and 
+            len(st.session_state.followup_questions) > 0):
+            
+            st.subheader("Questions for Team Leaders")
+            for question in st.session_state.followup_questions:
+                st.markdown(f"• {question}")
+    
+    with tab2:
+        # Show the raw AI output without formatting
+        st.subheader("Raw AI Output")
+        st.info("This is the unformatted output from the Gemini AI model. Use this to evaluate the quality of insights.")
+        
+        # Concatenate all sections with headers for readability
+        if isinstance(st.session_state.daily_insights, dict):
+            raw_output = ""
+            
+            # Exclude error key if present
+            sections_to_display = {k: v for k, v in st.session_state.daily_insights.items() if k != "error"}
+            
+            for section, content in sections_to_display.items():
+                section_title = section.replace("_", " ").title()
+                raw_output += f"## {section_title}\n\n{content}\n\n---\n\n"
+            
+            if raw_output:
+                st.markdown(raw_output)
+            else:
+                st.warning("No raw AI output available.")
+        else:
+            st.warning("No AI output available to display.")
+    
+    # Add a refresh button at the bottom
     if st.button("Regenerate AI Insights"):
         st.session_state.daily_insights = None
         st.session_state.trend_analysis = None

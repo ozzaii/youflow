@@ -384,8 +384,9 @@ elif query_type == "Status Changes":
             if to_status != 'Any' and 'added' in filtered_changes.columns:
                 filtered_changes = filtered_changes[filtered_changes['added'] == to_status]
             
-            # Sort by timestamp (most recent first)
-            filtered_changes = filtered_changes.sort_values('timestamp', ascending=False)
+            # Sort by timestamp (most recent first) if the column exists
+            if 'timestamp' in filtered_changes.columns:
+                filtered_changes = filtered_changes.sort_values('timestamp', ascending=False)
             
             st.subheader(f"Status Changes: {from_status} → {to_status}")
             st.info(f"Found {len(filtered_changes)} transitions")
@@ -437,8 +438,9 @@ elif query_type == "Assignee Changes":
                 if to_assignee != 'Any' and 'added' in filtered_changes.columns:
                     filtered_changes = filtered_changes[filtered_changes['added'] == to_assignee]
                 
-                # Sort by timestamp (most recent first)
-                filtered_changes = filtered_changes.sort_values('timestamp', ascending=False)
+                # Sort by timestamp (most recent first) if the column exists
+                if 'timestamp' in filtered_changes.columns:
+                    filtered_changes = filtered_changes.sort_values('timestamp', ascending=False)
                 
                 st.subheader(f"Assignee Changes: {from_assignee} → {to_assignee}")
                 st.info(f"Found {len(filtered_changes)} transitions")
@@ -446,7 +448,8 @@ elif query_type == "Assignee Changes":
                 if not filtered_changes.empty:
                     # Format for display
                     display_changes = filtered_changes.copy()
-                    display_changes['timestamp'] = display_changes['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
+                    if 'timestamp' in display_changes.columns and not display_changes['timestamp'].empty:
+                        display_changes['timestamp'] = display_changes['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
                     
                     st.dataframe(display_changes, use_container_width=True)
         else:

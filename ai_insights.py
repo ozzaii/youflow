@@ -755,8 +755,15 @@ class AIInsightsGenerator:
             
             # Improved condition to handle empty lists differently than missing data
             has_no_issues = project_stats.get('total_issues', 0) == 0
-            missing_status_data = 'status_distribution' not in context
-            missing_assignee_data = 'assignee_workload' not in context
+            
+            # Check for presence of status distribution data
+            missing_status_data = False
+            if 'status_distribution' not in context:
+                missing_status_data = True
+            elif not context['status_distribution']:  # Handle empty dict case
+                missing_status_data = True
+                
+            # We don't need to check assignee data anymore as it's not critical
             
             if has_no_issues or missing_status_data:
                 # Create a basic summary from the limited available data

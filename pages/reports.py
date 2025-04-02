@@ -173,37 +173,56 @@ def generate_project_overview():
     ]
     
     # Add recent activity table
-    if not data_processor.history_df.empty:
-        recent_cutoff = pd.Timestamp(date_start_ts)
-        recent_activity = data_processor.history_df[data_processor.history_df['timestamp'] > recent_cutoff].copy()
-        
-        if not recent_activity.empty:
-            # Sort by timestamp (most recent first)
-            recent_activity = recent_activity.sort_values('timestamp', ascending=False)
+    try:
+        if hasattr(data_processor, 'history_df') and data_processor.history_df is not None and not data_processor.history_df.empty:
+            recent_cutoff = pd.Timestamp(date_start_ts)
             
-            # Add issue summary
-            recent_activity = recent_activity.merge(
-                data_processor.issues_df[['id', 'summary']],
-                left_on='issue_id',
-                right_on='id',
-                how='left'
-            )
-            
-            # Format for display
-            display_activity = recent_activity[['timestamp', 'issue_id', 'summary', 'field_name', 'removed', 'added', 'author']].head(20)
-            display_activity['timestamp'] = display_activity['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
-            
-            # Rename columns for better display
-            display_activity.columns = ['Time', 'Issue ID', 'Summary', 'Field', 'Old Value', 'New Value', 'Author']
-            
-            # Convert to HTML table
-            activity_html = display_activity.to_html(index=False, classes="table table-striped")
-            
-            content.append({
-                "type": "table",
-                "title": "Recent Activity",
-                "content": activity_html
-            })
+            # Check if timestamp column exists
+            if 'timestamp' in data_processor.history_df.columns:
+                recent_activity = data_processor.history_df[data_processor.history_df['timestamp'] > recent_cutoff].copy()
+                
+                if not recent_activity.empty:
+                    # Sort by timestamp (most recent first)
+                    recent_activity = recent_activity.sort_values('timestamp', ascending=False)
+                    
+                    # Add issue summary
+                    recent_activity = recent_activity.merge(
+                        data_processor.issues_df[['id', 'summary']],
+                        left_on='issue_id',
+                        right_on='id',
+                        how='left'
+                    )
+                    
+                    # Make sure we have all necessary columns
+                    required_cols = ['timestamp', 'issue_id', 'summary', 'field_name', 'removed', 'added', 'author']
+                    missing_cols = [col for col in required_cols if col not in recent_activity.columns]
+                    
+                    if not missing_cols:
+                        # Format for display
+                        display_activity = recent_activity[required_cols].head(20)
+                        display_activity['timestamp'] = display_activity['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
+                        
+                        # Rename columns for better display
+                        display_activity.columns = ['Time', 'Issue ID', 'Summary', 'Field', 'Old Value', 'New Value', 'Author']
+                        
+                        # Convert to HTML table
+                        activity_html = display_activity.to_html(index=False, classes="table table-striped")
+                        
+                        content.append({
+                            "type": "table",
+                            "title": "Recent Activity",
+                            "content": activity_html
+                        })
+                    else:
+                        st.warning(f"Activity data is missing columns: {missing_cols}")
+                else:
+                    st.info("No recent activity found in the selected date range.")
+            else:
+                st.warning("Activity data doesn't contain timestamp column.")
+        else:
+            st.info("No history data available for activity reporting.")
+    except Exception as e:
+        st.warning(f"Error processing activity data: {str(e)}")
     
     # Return the report HTML
     return create_html_report("Project Overview Report", content)

@@ -1,0 +1,231 @@
+Alright, let’s go deep into every GET endpoint that the Postman collection offers for data extraction from YouTrack, complete with the example responses provided. I’ll break it down by category so you can see exactly what data you can pull and how the examples look.
+
+────────────────────────────
+1. Activities
+
+• Read a List of Activity Items
+ – Endpoint:
+  GET {{baseUrl}}/activities
+ – Query Parameters:
+  • fields – Specify which fields to return (e.g. added,author(id,login,ringId),category(id),field(customField(fieldType(id),id,localizedName,name),id,name),id,removed,target,targetMember,timestamp)
+  • categories – Filter by activity categories (e.g. IssueCreatedCategory,CommentsCategory)
+  • $skip and $top – For pagination
+ – Example Response:
+  You get an array of activity items. For instance, one sample item shows:
+  json   {     "added": [{ "id": "4-2", "$type": "IssueComment" }],     "id": "4-2.0-0",     "author": { "login": "john.doe", "name": "John Doe", "id": "1-2", "$type": "User" },     "timestamp": 1533221614364,     "target": { "id": "4-2", "$type": "IssueComment" },     "$type": "CommentActivityItem"   }   
+  This endpoint returns various activities like issue creation and comment additions.
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+• Read a Specific Activity Item
+ – Endpoint:
+  GET {{baseUrl}}/activities/:id
+ – Usage:
+  Replace :id with the activity item’s ID (e.g. using {{activityItemID}}).
+ – Example Response:
+  A detailed object is returned including type, added items, author info, and timestamps. One sample response includes additional navigation info such as cursors for paging:
+  json   {     "afterCursor": "AI.2-2+:CM.4-0-:1533132320210",     "beforeCursor": "AI.^+:CM.^+:1533132312016",     "activities": [       {         "id": "2-0.0-0",         "author": { "login": "root", "name": "John Smith", "$type": "User" },         "timestamp": 1533132312016,         "$type": "IssueCreatedActivityItem"       },       ...     ],     "id": "AI.^+:CM.^+:1533132312016#AI.2-2+:CM.4-0-:1533132320210.d",     "$type": "ActivityCursorPage"   }   
+  ouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+────────────────────────────
+2. Comments
+
+• Issue Comments
+ – Endpoint:
+  GET {{baseUrl}}/issues/:id/comments
+ – Query Parameters:
+  Specify fields such as id,author(login,name,id),deleted,text,updated,visibility(...)
+ – Example Response:
+  Returns an array of comment objects; each includes the comment text, author details, and a visibility structure that lists permitted groups/users.
+
+• Article Comments
+ – Endpoint:
+  GET {{baseUrl}}/articles/:id/comments
+ – Example Response:
+  Similar to issue comments, you get objects with fields like id,author(id,name),text,created plus visibility info.
+  (These endpoints let you pull comment data from both issues and articles.)
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+────────────────────────────
+3. Issue Attachments
+
+• Read a Specific Issue Attachment
+ – Endpoint:
+  GET {{baseUrl}}/issues/:id/attachments/:issueAttachmentId
+ – Query Parameters:
+  Include fields like id,name,author(id,name),created,updated,size,mimeType,extension,metaData,url
+ – Example Response:
+  You receive a JSON object detailing the attachment’s metadata, which is perfect for linking to binary data or displaying file details.
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+────────────────────────────
+4. Administration – Custom Field Settings
+
+These endpoints let you extract metadata on custom fields and their value bundles. They’re grouped into Build Bundles and Enum Bundles.
+
+A. Build Bundles
+
+• Read a List of BuildBundleElements
+ – Endpoint:
+  GET {{baseUrl}}/admin/customFieldSettings/bundles/build/:id/values
+ – Query Parameters:
+  Specify fields like id,name,assembleDate,description
+ – Example Response:
+  Returns an array such as:
+  json   [     {       "assembleDate": 1627300800000,       "description": null,       "name": "135",       "id": "150-5",       "$type": "BuildBundleElement"     },     { ... }   ]   
+
+• Read a Specific BuildBundleElement
+ – Endpoint:
+  GET {{baseUrl}}/admin/customFieldSettings/bundles/build/:id/values/:buildBundleElementId
+ – Example Response:
+  json   {     "assembleDate": 1627300800000,     "description": null,     "name": "135",     "id": "150-5",     "$type": "BuildBundleElement"   }   
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+• Read a Specific BuildBundle
+ – Endpoint:
+  GET {{baseUrl}}/admin/customFieldSettings/bundles/build/:id
+ – Query Parameters:
+  Include fields like name,id,values(name,id,description,ordinal,hasRunningJob,assembleDate),isUpdateable
+ – Example Response:
+  Returns an object that contains the bundle’s name, update flag, and an array of its elements.
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+• Read a List of BuildBundles
+ – Endpoint:
+  GET {{baseUrl}}/admin/customFieldSettings/bundles/build
+ – Query Parameters:
+  Fields such as id,name,fieldType(presentation,id)
+ – Example Response:
+  An array of bundles, each showing minimal metadata like name and id.
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+• Add, Update, and Delete endpoints also exist for BuildBundleElements and BuildBundles; their sample responses (for update, you see the changed object; for delete, an empty body is returned) follow the same patterns.
+
+B. Enum Bundles
+
+• Read a Specific EnumBundleElement
+ – Endpoint:
+  GET {{baseUrl}}/admin/customFieldSettings/bundles/enum/:id/values/:enumBundleElementId
+ – Query Parameters:
+  Fields like id,name
+ – Example Response:
+  json   {     "name": "Bug",     "id": "55-5",     "$type": "EnumBundleElement"   }   
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+• Read a List of EnumBundleElements
+ – Endpoint:
+  GET {{baseUrl}}/admin/customFieldSettings/bundles/enum/:id/values
+ – Example Response:
+  An array of enum values such as “Bug”, “Exception”, “Feature”, etc.
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+• Update and Delete endpoints for EnumBundleElements are available as well, each returning updated objects or empty responses upon deletion.
+
+────────────────────────────
+5. Time Tracking
+
+• Issue Work Items
+ – Endpoint:
+  GET {{baseUrl}}/issues/:id/timeTracking/workItems
+ – Query Parameters:
+  Fields like id,author(id,name),date,duration(id,minutes,presentation)
+ – Example Response:
+  You get an array of work items; one example might look like:
+  json   {     "id": "workitem-id",     "author": { "id": "1-2", "name": "John Doe" },     "date": 1627300800000,     "duration": { "id": "duration-id", "minutes": 120, "presentation": "2h" }   }   
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+────────────────────────────
+6. Users and Groups
+
+• Users
+ – Endpoint:
+  GET {{baseUrl}}/users
+ – Example Response:
+  Returns an array of user objects, e.g.:
+  json   [     { "id": "1-2", "login": "john.doe" },     { "id": "1-3", "login": "jane.smith" }   ]   
+
+• User Groups
+ – Endpoint:
+  GET {{baseUrl}}/groups
+ – Example Response:
+  An array of group objects with fields like id and login.
+
+────────────────────────────
+7. Agile Boards and Sprints
+
+• Agile Boards
+ – Endpoint:
+  GET {{baseUrl}}/agiles
+ – Query Parameters:
+  Fields such as id,name
+ – Example Response:
+  Returns a list of boards, e.g.:
+  json   [     { "id": "board-1", "name": "Sample Agile Board" },     { "id": "board-2", "name": "Development Board" }   ]   
+
+• Sprints on a Board
+ – Endpoint:
+  GET {{baseUrl}}/agiles/:agileBoardID/sprints
+ – Example Response:
+  An array of sprints with fields like id, name, start, and finish.
+
+────────────────────────────
+8. Saved Queries
+
+• Endpoint:
+  GET {{baseUrl}}/savedQueries
+• Example Response:
+  A list of saved search queries is returned with fields such as id, name, and query, allowing you to retrieve and reuse predefined searches.
+
+────────────────────────────
+9. Articles
+
+• Articles
+ – Endpoint:
+  GET {{baseUrl}}/articles
+ – Query Parameters:
+  Specify fields like id,summary
+ – Example Response:
+  An array of article objects.
+
+• Article Attachments and Comments
+ – Attachments:
+  GET {{baseUrl}}/articles/:articleID/attachments returns attachment metadata.
+ – Comments:
+  GET {{baseUrl}}/articles/:articleID/comments returns comment objects including author and creation time.
+
+────────────────────────────
+10. Telemetry and Backups
+
+• Telemetry
+ – Endpoint:
+  GET {{baseUrl}}/admin/telemetry
+ – Example Response:
+  Returns system-level metrics such as:
+  json   {     "databaseSize": 123456789,     "uptime": 9876543,     "startedTime": 1627300800000,     "textIndexSize": 456789   }   
+  YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3)
+
+• Database Backups
+ – Endpoint:
+  GET {{baseUrl}}/admin/databaseBackup/backups
+ – Example Response:
+  Returns backup file metadata including names and IDs.
+
+────────────────────────────
+Putting It All Together
+
+The Postman collection you sent is incredibly comprehensive. It covers nearly every GET method you might need to pull data from a YouTrack instance. Each endpoint is designed to allow you to select the precise fields you want (thus minimizing payload size), and almost every endpoint comes with example data so you know exactly what to expect. This includes everything from low-level activity tracking (with detailed cursor-based pagination) to high-level system telemetry.
+
+If your goal is to extract and then visualize or feed this data into LLMs, you have all the modern methods at your fingertips:
+  • Activities (both list and detailed single activity views)
+  • Comments (for issues and articles)
+  • Attachments (with full metadata)
+  • Custom Field data (via both Build and Enum Bundles)
+  • Work items for time tracking
+  • User and group information
+  • Agile board and sprint details
+  • Saved queries, articles, and system telemetry
+
+Each endpoint’s sample response (as shown in the collection) confirms the data shape and fields available. I’ve referenced several parts of the collection (‡YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3), ‡YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3), ‡YouTrack REST API.postman_collection.json](file-service://file-AyapbbVijefVNp4dnohzj3), etc.) to give you a complete picture.
+
+So, to answer your question: Yes, the detailed list above covers every available GET endpoint for data extraction that’s in the Postman collection you sent, along with the example responses provided in that documentation. If you need further granularity on any specific endpoint or additional endpoints beyond GET (like POST/DELETE for data manipulation), the official documentation and the full collection will have those details too.
+
+Hope this lengthy, detailed rundown gives you everything you need to build out your visualization and LLM pipeline. Let me know if you want to drill down further on any part!
