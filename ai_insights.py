@@ -4,6 +4,7 @@ Module for generating AI-powered insights using Google's Gemini 2.0 model.
 import os
 import logging
 import json
+import re
 import google.generativeai as genai
 from typing import Dict, List, Any, Optional
 import pandas as pd
@@ -271,45 +272,117 @@ class AIInsightsGenerator:
             # Process and structure the response
             raw_insights = response.text
             
-            # Split into sections
+            # Check if any data is available before attempting to parse
+            project_stats = context.get('project_stats', {})
+            if (project_stats.get('total_issues', 0) == 0 or 
+                not context.get('status_distribution') or 
+                not context.get('assignee_workload')):
+                
+                # Create a basic summary from the limited available data
+                sections = {
+                    "executive_summary": "Limited data is available for analysis. Please refresh the data or check API connection settings.",
+                    "key_metrics": f"Total issues: {project_stats.get('total_issues', 0)}. No detailed metrics are available due to limited data.",
+                    "risks_bottlenecks": "Unable to identify risks and bottlenecks due to insufficient data.",
+                    "recommendations": "1. Verify YouTrack API connection settings.\n2. Check that you have selected the correct project ID.\n3. Ensure your API token has sufficient permissions.",
+                    "team_performance": "Team performance analysis requires issue assignee data which is currently not available."
+                }
+                logger.info("Generated basic insights with limited data")
+                return sections
+            
+            # Split into sections (more robust parsing that handles various formats)
             sections = {}
+            text_blocks = raw_insights.split('\n\n')
+            
+            # Initialize default section content for fallback
+            default_content = {
+                "executive_summary": "Analysis of the YouTrack data shows limited information for comprehensive insights.",
+                "key_metrics": "No detailed metrics could be derived from the current data.",
+                "risks_bottlenecks": "Insufficient data to identify specific risks and bottlenecks.",
+                "recommendations": "Review the data quality and completeness to enable better insights.",
+                "team_performance": "Team performance analysis requires additional data."
+            }
+            
+            # Match sections using more flexible patterns
             current_section = None
-            current_content = []
+            section_patterns = {
+                r"executive\s*summary|summary|overview": "executive_summary",
+                r"key\s*metrics|metrics|statistics": "key_metrics",
+                r"risks|bottlenecks|issues|challenges|problems": "risks_bottlenecks",
+                r"recommendations|suggestions|actions": "recommendations",
+                r"team\s*performance|performance|team": "team_performance"
+            }
             
-            for line in raw_insights.split('\n'):
-                if line.startswith('1. Executive Summary'):
-                    current_section = "executive_summary"
-                    current_content = []
-                elif line.startswith('2. Key Metrics'):
-                    if current_section:
-                        sections[current_section] = '\n'.join(current_content).strip()
-                    current_section = "key_metrics"
-                    current_content = []
-                elif line.startswith('3. Risks & Bottlenecks'):
-                    if current_section:
-                        sections[current_section] = '\n'.join(current_content).strip()
-                    current_section = "risks_bottlenecks"
-                    current_content = []
-                elif line.startswith('4. Recommendations'):
-                    if current_section:
-                        sections[current_section] = '\n'.join(current_content).strip()
-                    current_section = "recommendations"
-                    current_content = []
-                elif line.startswith('5. Team Performance'):
-                    if current_section:
-                        sections[current_section] = '\n'.join(current_content).strip()
-                    current_section = "team_performance"
-                    current_content = []
-                else:
-                    current_content.append(line)
+            # Process each paragraph
+            for block in text_blocks:
+                block = block.strip()
+                if not block:
+                    continue
+                    
+                # Try to identify section headers
+                section_found = False
+                for pattern, section_name in section_patterns.items():
+                    # Check if this block is a new section header
+                    if (re.search(r"^\d+[\.\)]\s*" + pattern, block.lower(), re.IGNORECASE) or
+                        re.search(r"^" + pattern + r"\s*[:,]", block.lower(), re.IGNORECASE)):
+                        current_section = section_name
+                        section_found = True
+                        # Don't include the header line in the content
+                        # Instead, add the rest of the block if it contains more than the header
+                        content_lines = block.split('\n')[1:]
+                        if content_lines:
+                            sections[current_section] = '\n'.join(content_lines).strip()
+                        else:
+                            sections[current_section] = ""
+                        break
+                
+                # If it's not a section header and we have a current section, add to that section
+                if not section_found and current_section:
+                    if current_section in sections:
+                        sections[current_section] += "\n\n" + block
+                    else:
+                        sections[current_section] = block
             
-            # Add the last section
-            if current_section:
-                sections[current_section] = '\n'.join(current_content).strip()
-            
-            # If parsing failed, return raw text
+            # If no sections were identified or some are missing, use the whole text
             if not sections:
-                sections = {"raw_insights": raw_insights}
+                logger.warning("Failed to parse AI response into sections")
+                # Try to split it into reasonable sections
+                lines = raw_insights.split('\n')
+                current_section = "executive_summary"  # Start with executive summary
+                for i, line in enumerate(lines):
+                    if i < len(lines) // 5:
+                        if current_section in sections:
+                            sections[current_section] += "\n" + line
+                        else:
+                            sections[current_section] = line
+                    elif i < 2 * len(lines) // 5:
+                        current_section = "key_metrics"
+                        if current_section in sections:
+                            sections[current_section] += "\n" + line
+                        else:
+                            sections[current_section] = line
+                    elif i < 3 * len(lines) // 5:
+                        current_section = "risks_bottlenecks"
+                        if current_section in sections:
+                            sections[current_section] += "\n" + line
+                        else:
+                            sections[current_section] = line
+                    elif i < 4 * len(lines) // 5:
+                        current_section = "recommendations"
+                        if current_section in sections:
+                            sections[current_section] += "\n" + line
+                        else:
+                            sections[current_section] = line
+                    else:
+                        current_section = "team_performance"
+                        if current_section in sections:
+                            sections[current_section] += "\n" + line
+                        else:
+                            sections[current_section] = line
+            
+            # Fill in any missing sections with defaults
+            for section, content in default_content.items():
+                if section not in sections or not sections[section].strip():
+                    sections[section] = content
             
             logger.info("Successfully generated AI insights")
             return sections
