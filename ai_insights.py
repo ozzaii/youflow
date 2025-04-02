@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyARZyERqMaFInsbRKUA0NxOok77syBNzK8")
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Define standard response for rate limiting
+RATE_LIMIT_RESPONSE = {
+    "executive_summary": "Unable to generate AI insights due to API rate limiting.",
+    "key_metrics": "The Gemini API quota has been exceeded. Please try again later.",
+    "risks_bottlenecks": "API rate limit reached. Consider implementing a retry mechanism with exponential backoff.",
+    "recommendations": "1. Check Gemini API quota and billing details at https://ai.google.dev/gemini-api/docs/rate-limits\n2. Implement request caching to reduce API calls\n3. Consider upgrading to a higher API tier",
+    "team_performance": "Team performance analysis unavailable due to API rate limiting."
+}
+
 class AIInsightsGenerator:
     """Generate insights from YouTrack data using Google's Gemini 2.0 AI model."""
     
@@ -767,9 +776,16 @@ class AIInsightsGenerator:
             
         except Exception as e:
             logger.error(f"Error generating AI insights: {str(e)}", exc_info=True)
-            return {
-                "error": f"Failed to generate insights: {str(e)}"
-            }
+            
+            # Check for rate limit errors specifically to provide better feedback
+            error_message = str(e)
+            if "429" in error_message and "quota" in error_message:
+                logger.warning("Gemini API rate limit exceeded, returning standard rate limit response")
+                return RATE_LIMIT_RESPONSE
+            else:
+                return {
+                    "error": f"Failed to generate insights: {str(e)}"
+                }
     
     def analyze_issue_trends(self, data_processor) -> Dict[str, Any]:
         """
@@ -865,9 +881,25 @@ class AIInsightsGenerator:
             
         except Exception as e:
             logger.error(f"Error analyzing issue trends: {str(e)}", exc_info=True)
-            return {
-                "error": f"Failed to analyze trends: {str(e)}"
-            }
+            
+            # Check for rate limit errors
+            error_message = str(e)
+            if "429" in error_message and "quota" in error_message:
+                logger.warning("Gemini API rate limit exceeded for trend analysis")
+                
+                # Check if trend_data was created before the error
+                trend_data_to_return = []
+                if 'trend_data' in locals():
+                    trend_data_to_return = trend_data
+                
+                return {
+                    "error": "API rate limit exceeded. Please try again later.",
+                    "trend_data": trend_data_to_return
+                }
+            else:
+                return {
+                    "error": f"Failed to analyze trends: {str(e)}"
+                }
     
     def generate_followup_questions(self, data_processor) -> List[str]:
         """
@@ -937,4 +969,17 @@ class AIInsightsGenerator:
             
         except Exception as e:
             logger.error(f"Error generating follow-up questions: {str(e)}", exc_info=True)
-            return [f"Error generating questions: {str(e)}"]
+            
+            # Check for rate limit errors
+            error_message = str(e)
+            if "429" in error_message and "quota" in error_message:
+                logger.warning("Gemini API rate limit exceeded for question generation")
+                return [
+                    "1. API rate limit reached. Please try again later.",
+                    "2. What are the current blockers for critical issues?",
+                    "3. How is the team workload distributed?",
+                    "4. Are there any stale issues that require immediate attention?",
+                    "5. What is our current sprint completion rate?"
+                ]
+            else:
+                return [f"Error generating questions: {str(e)}"]

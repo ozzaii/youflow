@@ -228,17 +228,39 @@ def display_ai_insights():
         return
         
     if isinstance(st.session_state.daily_insights, dict) and "error" in st.session_state.daily_insights:
-        st.error(st.session_state.daily_insights["error"])
-        st.warning("To use AI insights, make sure you have valid project data loaded. Try refreshing the data or checking your API token.")
+        error_msg = st.session_state.daily_insights["error"]
         
-        # Still show the refresh button
-        if st.button("Try Again with AI Insights"):
-            st.session_state.daily_insights = None
-            st.session_state.trend_analysis = None
-            st.session_state.followup_questions = None
-            generate_ai_insights()
-            st.rerun()
-        return
+        # Handle rate limiting errors specially
+        if "rate limit" in error_msg.lower() or "429" in error_msg or "quota" in error_msg:
+            st.warning("⚠️ API Rate Limit Exceeded")
+            st.info("""
+            The Google Gemini API rate limit has been reached. This typically happens when:
+            1. Too many requests are made in a short period
+            2. The free tier quota has been exceeded
+            3. The API key needs to be updated
+            
+            The system will still function with limited AI capabilities.
+            """)
+        else:
+            st.error(error_msg)
+            st.warning("To use AI insights, make sure you have valid project data loaded. Try refreshing the data or checking your API token.")
+        
+        # Always show the refresh button
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            if st.button("Try Again with AI Insights"):
+                st.session_state.daily_insights = None
+                st.session_state.trend_analysis = None
+                st.session_state.followup_questions = None
+                generate_ai_insights()
+                st.rerun()
+        with col2:
+            if st.button("Continue with Limited AI Features"):
+                pass  # This allows the user to continue with the rest of the UI
+                
+        # If it's a rate limit error, still show the UI sections with the fallback content
+        if not ("rate limit" in error_msg.lower() or "429" in error_msg or "quota" in error_msg):
+            return
     
     # Executive Summary
     if isinstance(st.session_state.daily_insights, dict) and "executive_summary" in st.session_state.daily_insights:
