@@ -1,0 +1,261 @@
+
+Google AI for Developers
+Models
+
+Solutions
+Code assistance
+Showcase
+Community
+/
+
+
+English
+Sign in
+Gemini API docs
+API Reference
+Cookbook
+
+Gemini 2.5 Pro Experimental, our most advanced model, is now available! Learn more
+Home
+Gemini API
+Models
+Was this helpful?
+
+Send feedback Gemini models
+2.5 Pro experiment
+
+Our most powerful thinking model with maximum response accuracy and state-of-the-art performance
+
+Input audio, images, video, and text, get text responses
+Tackle difficult problems, analyze large databases, and more
+Best for complex coding, reasoning, and multimodal understanding
+2.0 Flash spark
+
+Our newest multimodal model, with next generation features and improved capabilities
+
+Input audio, images, video, and text, get text responses
+Generate code and images, extract data, analyze files, generate graphs, and more
+Low latency, enhanced performance, built to power agentic experiences
+2.0 Flash-Lite
+
+A Gemini 2.0 Flash model optimized for cost efficiency and low latency
+
+Input audio, images, video, and text, get text responses
+Outperforms 1.5 Flash on the majority of benchmarks
+A 1 million token context window and multimodal input, like Flash 2.0
+Model variants
+
+The Gemini API offers different models that are optimized for specific use cases. Here's a brief overview of Gemini variants that are available:
+
+Model variant	Input(s)	Output	Optimized for
+Gemini 2.5 Pro Experimental
+gemini-2.5-pro-exp-03-25	Audio, images, videos, and text	Text	Enhanced thinking and reasoning, multimodal understanding, advanced coding, and more
+Gemini 2.0 Flash
+gemini-2.0-flash	Audio, images, videos, and text	Text, images (experimental), and audio (coming soon)	Next generation features, speed, thinking, realtime streaming, and multimodal generation
+Gemini 2.0 Flash-Lite
+gemini-2.0-flash-lite	Audio, images, videos, and text	Text	Cost efficiency and low latency
+Gemini 1.5 Flash
+gemini-1.5-flash	Audio, images, videos, and text	Text	Fast and versatile performance across a diverse variety of tasks
+Gemini 1.5 Flash-8B
+gemini-1.5-flash-8b	Audio, images, videos, and text	Text	High volume and lower intelligence tasks
+Gemini 1.5 Pro
+gemini-1.5-pro	Audio, images, videos, and text	Text	Complex reasoning tasks requiring more intelligence
+Gemini Embedding
+gemini-embedding-exp	Text	Text embeddings	Measuring the relatedness of text strings
+Imagen 3
+imagen-3.0-generate-002	Text	Images	Our most advanced image generation model
+You can view the rate limits for each model on the rate limits page.
+
+Gemini 2.5 Pro Experimental
+
+Gemini 2.0 Flash
+
+Gemini 2.0 Flash delivers next-gen features and improved capabilities, including superior speed, native tool use, multimodal generation, and a 1M token context window.
+
+Try in Google AI Studio
+
+Model details
+
+Property	Description
+id_cardModel code	models/gemini-2.0-flash
+saveSupported data types
+Inputs
+
+Audio, images, video, and text
+
+Output
+
+Text, images (experimental), and audio(coming soon)
+
+token_autoToken limits[*]
+Input token limit
+
+1,048,576
+
+Output token limit
+
+8,192
+
+handymanCapabilities
+Structured outputs
+
+Supported
+
+Caching
+
+Coming soon
+
+Tuning
+
+Not supported
+
+Function calling
+
+Supported
+
+Code execution
+
+Supported
+
+Search
+
+Supported
+
+Image generation
+
+Experimental
+
+Native tool use
+
+Supported
+
+Audio generation
+
+Coming soon
+
+Live API
+
+Experimental
+
+Thinking
+
+Experimental
+
+123Versions	
+Read the model version patterns for more details.
+Latest: gemini-2.0-flash
+Stable: gemini-2.0-flash-001
+Experimental: gemini-2.0-flash-exp and gemini-2.0-flash-exp-image-generation point to the same underlying model
+Experimental: gemini-2.0-flash-thinking-exp-01-21
+calendar_monthLatest update	February 2025
+cognition_2Knowledge cutoff	August 2024
+Gemini 2.0 Flash-Lite
+
+Gemini 1.5 Flash
+
+Gemini 1.5 Flash-8B
+
+Gemini 1.5 Pro
+
+Imagen 3
+
+Gemini Embedding Experimental
+
+Text Embedding and Embedding
+
+AQA
+
+See the examples to explore the capabilities of these model variations.
+
+[*] A token is equivalent to about 4 characters for Gemini models. 100 tokens are about 60-80 English words.
+
+Model version name patterns
+
+Gemini models are available in either preview or stable versions. In your code, you can use one of the following model name formats to specify which model and version you want to use.
+
+Latest: Points to the cutting-edge version of the model for a specified generation and variation. The underlying model is updated regularly and might be a preview version. Only exploratory testing apps and prototypes should use this alias.
+
+To specify the latest version, use the following pattern: <model>-<generation>-<variation>-latest. For example, gemini-1.0-pro-latest.
+Latest stable: Points to the most recent stable version released for the specified model generation and variation.
+
+To specify the latest stable version, use the following pattern: <model>-<generation>-<variation>. For example, gemini-1.0-pro.
+Stable: Points to a specific stable model. Stable models usually don't change. Most production apps should use a specific stable model.
+
+To specify a stable version, use the following pattern: <model>-<generation>-<variation>-<version>. For example, gemini-1.0-pro-001.
+Experimental: Points to an experimental model (not for production use). We release experimental models to gather feedback, get our latest updates into the hands of developers quickly, and highlight the pace of innovation happening at Google.
+
+To specify an experimental version, use the following pattern: <model>-<generation>-<variation>-<version>. For example, gemini-2.0-pro-exp-02-05.
+Experimental models
+
+In addition to the production ready models, the Gemini API offers experimental models (not for production use, as defined in our Terms).
+
+We release experimental models to gather feedback, get our latest updates into the hands of developers quickly, and highlight the pace of innovation happening at Google. What we learn from experimental launches informs how we release models more widely. An experimental model can be swapped for another without prior notice. We don't guarantee that an experimental model will become a stable model in the future.
+
+Previous experimental models
+
+As new versions or stable releases become available, we remove and replace experimental models. You can find the previous experimental models we released in the following section along with the replacement version:
+
+Model code	Base model	Replacement version
+gemini-2.0-pro-exp-02-05	Gemini 2.0 Pro Experimental	gemini-2.5-pro-exp-03-25
+gemini-2.0-flash-exp	Gemini 2.0 Flash	gemini-2.0-flash
+gemini-exp-1206	Gemini 2.0 Pro	gemini-2.0-pro-exp-02-05
+gemini-2.0-flash-thinking-exp-1219	Gemini 2.0 Flash Thinking	gemini-2.0-flash-thinking-exp-01-21
+gemini-exp-1121	Gemini	gemini-exp-1206
+gemini-exp-1114	Gemini	gemini-exp-1206
+gemini-1.5-pro-exp-0827	Gemini 1.5 Pro	gemini-exp-1206
+gemini-1.5-pro-exp-0801	Gemini 1.5 Pro	gemini-exp-1206
+gemini-1.5-flash-8b-exp-0924	Gemini 1.5 Flash-8B	gemini-1.5-flash-8b
+gemini-1.5-flash-8b-exp-0827	Gemini 1.5 Flash-8B	gemini-1.5-flash-8b
+Supported languages
+
+Gemini models are trained to work with the following languages:
+
+Arabic (ar)
+Bengali (bn)
+Bulgarian (bg)
+Chinese simplified and traditional (zh)
+Croatian (hr)
+Czech (cs)
+Danish (da)
+Dutch (nl)
+English (en)
+Estonian (et)
+Finnish (fi)
+French (fr)
+German (de)
+Greek (el)
+Hebrew (iw)
+Hindi (hi)
+Hungarian (hu)
+Indonesian (id)
+Italian (it)
+Japanese (ja)
+Korean (ko)
+Latvian (lv)
+Lithuanian (lt)
+Norwegian (no)
+Polish (pl)
+Portuguese (pt)
+Romanian (ro)
+Russian (ru)
+Serbian (sr)
+Slovak (sk)
+Slovenian (sl)
+Spanish (es)
+Swahili (sw)
+Swedish (sv)
+Thai (th)
+Turkish (tr)
+Ukrainian (uk)
+Vietnamese (vi)
+Was this helpful?
+
+Send feedback
+Except as otherwise noted, the content of this page is licensed under the Creative Commons Attribution 4.0 License, and code samples are licensed under the Apache 2.0 License. For details, see the Google Developers Site Policies. Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2025-04-01 UTC.
+
+Terms
+Privacy
+
+English

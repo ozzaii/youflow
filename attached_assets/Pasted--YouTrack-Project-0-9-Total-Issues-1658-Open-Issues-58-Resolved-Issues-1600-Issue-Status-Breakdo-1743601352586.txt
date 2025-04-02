@@ -1,0 +1,55 @@
+
+YouTrack Project: 0-9
+Total Issues
+
+1658
+Open Issues
+
+58
+Resolved Issues
+
+1600
+Issue Status Breakdown
+🧠 AI-Powered Insights
+Executive Summary
+Limited data is available for analysis. Please refresh the data or check API connection settings.
+
+Key Metrics
+
+Total issues: 1658. No detailed metrics are available due to limited data.
+
+Risks & Bottlenecks
+
+Unable to identify risks and bottlenecks due to insufficient data.
+
+Recommendations
+
+Verify YouTrack API connection settings.
+Check that you have selected the correct project ID.
+Ensure your API token has sufficient permissions.
+Team Performance
+
+Team performance analysis requires issue assignee data which is currently not available.
+
+Follow-up Questions
+• 1. Why are there 58 stale issues, and what steps can be taken to resolve them quickly?
+
+• 2. The average resolution time is 0 days. Is this accurate, and if so, what processes are in place to ensure such rapid resolution? If not, what is the actual average resolution time?
+
+• 3. What is causing the recent and monthly creation and resolution rates to be 0, and are there any upcoming milestones or releases that might be affected?
+
+• 4. The majority of issues are Tasks with Normal priority. Are there any hidden risks associated with this distribution, and should we re-evaluate the prioritization process?
+
+• 5. Many issues are related to "KG" subsystem and reported by Tahir Tenbih. Is there a specific problem or bottleneck in this area, and what support does Tahir need?
+
+
+YouTrack Data Extraction & Visualization System
+Welcome to the YouTrack Analytics Dashboard for the Mercedes "MQ EIS/KG BSW" project. Use the navigation menu to explore different reports and visualizations.
+
+Available Features:
+Dashboard: Overview of project metrics and status
+Reports: Generate and export standardized reports
+Data Explorer: Explore the raw data and custom queries
+Settings: Configure system settings
+AI Insights: AI-powered analysis and recommendations
+Use the "Refresh Data" button in the sidebar to fetch the latest data from YouTrack.
