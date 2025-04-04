@@ -59,35 +59,50 @@ if 'trend_analysis' not in st.session_state:
 if 'followup_questions' not in st.session_state:
     st.session_state.followup_questions = None
 
-def load_or_refresh_data():
-    """Load data from files or refresh from API if needed."""
+def load_or_refresh_data(force_refresh: bool = False):
+    """Load data from files or refresh from API if forced or needed."""
     is_fresh, age_hours = check_data_freshness()
     
     # Initialize YouTrack API and data processor
     youtrack_api = YouTrackAPI()
     data_processor = st.session_state.data_processor
     
-    if not is_fresh:
+    # Determine if API fetch is needed
+    needs_api_fetch = force_refresh or not is_fresh
+    
+    if needs_api_fetch:
+        logger.info(f"API fetch triggered. Force refresh: {force_refresh}, Data is fresh: {is_fresh}")
         with st.spinner("Extracting data from YouTrack API..."):
             try:
-                # Extract data from YouTrack
+                # Extract data from YouTrack - this saves to raw_data_file
                 youtrack_api.extract_full_project_data()
-                st.success("Data extracted successfully!")
+                st.success("Data extracted successfully from API!")
             except Exception as e:
-                st.error(f"Error extracting data: {str(e)}")
+                st.error(f"Error extracting data from API: {str(e)}")
                 logger.error(f"Error extracting data: {str(e)}", exc_info=True)
-                return False
-    
-    # Process the data
-    with st.spinner("Processing data..."):
-        if data_processor.load_data():
-            if data_processor.process_data():
-                st.session_state.data_loaded = True
-                st.session_state.last_refresh = datetime.now()
-                return True
-    
-    return False
+                return False # Stop if API fetch fails
+    else:
+        logger.info("Skipping API fetch. Using existing raw data.")
 
+    # Always attempt to process data (either newly fetched or existing raw data)
+    with st.spinner("Processing data..."):
+        # Ensure the processor loads the correct raw file specified in config
+        if data_processor.load_data(): # This now loads raw_youtrack_data.json
+            if data_processor.process_data(): # This processes raw data and saves processed_youtrack_data.json
+                st.session_state.data_loaded = True
+                # Update last refresh only if API was actually called or processing happened
+                st.session_state.last_refresh = datetime.now() 
+                logger.info("Data processing successful.")
+                return True
+            else:
+                logger.error("Data processing failed after loading raw data.")
+                st.error("Data processing failed.")
+                return False
+        else:
+             logger.error(f"Failed to load raw data from {data_processor.raw_data_path}")
+             st.error(f"Could not load raw data file for processing.")
+             return False
+    
 def display_project_info():
     """Display basic project information."""
     data_processor = st.session_state.data_processor
@@ -443,12 +458,33 @@ def main():
     
     # Add refresh button in sidebar
     if st.sidebar.button("Refresh Data"):
-        with st.spinner("Refreshing data..."):
-            if load_or_refresh_data():
+        logger.info("'Refresh Data' button clicked.")
+        # Clear cached AI insights first
+        st.session_state.daily_insights = None
+        st.session_state.trend_analysis = None
+        st.session_state.followup_questions = None
+        logger.info("Cleared cached AI insights.")
+
+        # Now, attempt the refresh, forcing API call and reprocessing
+        with st.spinner("Refreshing data (fetching from API and processing)..."):
+            # Reset data loaded flag before attempting
+            st.session_state.data_loaded = False 
+            # Call with force_refresh=True
+            if load_or_refresh_data(force_refresh=True):
                 st.sidebar.success("Data refreshed successfully!")
+                # Use rerun to update the app state and UI fully
+                st.rerun() 
             else:
-                st.sidebar.error("Error refreshing data. Check logs for details.")
-    
+                st.sidebar.error("Error refreshing data. Check logs.")
+                # Attempt to load potentially existing processed data if refresh failed 
+                # # Commenting out this fallback as force_refresh implies we want new data or fail
+                # if data_processor.load_processed_data():
+                #      st.session_state.data_loaded = True
+                #      st.session_state.last_refresh = datetime.fromtimestamp(
+                #          os.path.getmtime(processed_path)
+                #      ) if os.path.exists(processed_path) else None
+                #      st.rerun()
+
     # Display data freshness info
     display_data_freshness()
     

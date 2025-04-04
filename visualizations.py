@@ -316,3 +316,73 @@ def create_status_flow_sankey(status_changes: pd.DataFrame) -> go.Figure:
     )
     
     return fig
+
+def create_issues_by_type_chart(df: pd.DataFrame, type_field: str = 'field_value') -> go.Figure:
+    """
+    Create a pie chart showing distribution of issues by type.
+    
+    Args:
+        df: DataFrame containing issue type information (from custom_fields_df filtered for 'Type')
+        type_field: Column name that contains type values
+        
+    Returns:
+        Plotly figure object or empty figure if no data
+    """
+    if df.empty or type_field not in df.columns:
+        fig = go.Figure()
+        fig.update_layout(title='No Issue Type Data Available')
+        return fig
+        
+    type_counts = df[type_field].value_counts().reset_index()
+    type_counts.columns = ['Type', 'Count']
+    
+    fig = px.pie(
+        type_counts, 
+        values='Count', 
+        names='Type',
+        title='Issues by Type',
+        color_discrete_sequence=px.colors.qualitative.Pastel
+    )
+    
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(
+        legend_title_text='Type',
+        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
+    )
+    
+    return fig
+
+def create_issues_by_priority_chart(df: pd.DataFrame, priority_field: str = 'field_value') -> go.Figure:
+    """
+    Create a pie chart showing distribution of issues by priority.
+    
+    Args:
+        df: DataFrame containing issue priority information (from custom_fields_df filtered for 'Priority')
+        priority_field: Column name that contains priority values
+        
+    Returns:
+        Plotly figure object or empty figure if no data
+    """
+    if df.empty or priority_field not in df.columns:
+        fig = go.Figure()
+        fig.update_layout(title='No Issue Priority Data Available')
+        return fig
+        
+    priority_counts = df[priority_field].value_counts().reset_index()
+    priority_counts.columns = ['Priority', 'Count']
+    
+    fig = px.pie(
+        priority_counts, 
+        values='Count', 
+        names='Priority',
+        title='Issues by Priority',
+        color_discrete_sequence=px.colors.qualitative.Set2
+    )
+    
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(
+        legend_title_text='Priority',
+        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
+    )
+    
+    return fig

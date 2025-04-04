@@ -22,28 +22,32 @@ logger = logging.getLogger(__name__)
 def check_data_freshness() -> Tuple[bool, Optional[float]]:
     """
     Check if the data is fresh or needs to be updated.
+    Checks based on the processed data file, not the raw file.
     
     Returns:
         Tuple of (is_fresh, age_in_hours)
     """
-    issues_file_path = os.path.join(app_config.data_dir, app_config.issues_file)
+    # Correctly check the PROCESSED data file specified in config
+    processed_data_path = os.path.join(app_config.data_dir, app_config.processed_data_file)
     
-    if not os.path.exists(issues_file_path):
-        logger.info("No data file found, data needs to be extracted")
+    if not os.path.exists(processed_data_path):
+        logger.info(f"Processed data file not found ({processed_data_path}), data needs to be refreshed/processed.")
         return False, None
     
     # Get file modification time
-    file_mod_time = os.path.getmtime(issues_file_path)
+    file_mod_time = os.path.getmtime(processed_data_path)
     current_time = time.time()
     
     # Calculate age in hours
     age_in_seconds = current_time - file_mod_time
     age_in_hours = age_in_seconds / 3600
     
-    # Check if older than refresh interval
-    is_fresh = age_in_hours < (app_config.refresh_interval / 3600)
+    # Determine if fresh based on a reasonable interval (e.g., 1 hour)
+    # TODO: Consider making this refresh interval configurable in AppConfig
+    refresh_interval_hours = 1 # Example: refresh if older than 1 hour
+    is_fresh = age_in_hours < refresh_interval_hours 
     
-    logger.info(f"Data age: {age_in_hours:.2f} hours, is fresh: {is_fresh}")
+    logger.info(f"Checked processed data file ({processed_data_path}). Age: {age_in_hours:.2f} hours, is fresh: {is_fresh} (Threshold: {refresh_interval_hours}h)")
     
     return is_fresh, age_in_hours
 

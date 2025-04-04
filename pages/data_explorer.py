@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime, timedelta
+import plotly.express as px # Import Plotly
 
 # Page config
 st.set_page_config(
@@ -40,9 +41,19 @@ with tab1:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # Filter by assignee
-            assignees = ['All'] + sorted(data_processor.issues_df['assignee'].dropna().unique().tolist())
-            selected_assignee = st.selectbox("Assignee", assignees)
+            # Filter by assignee (multiselect)
+            assignees = sorted(data_processor.issues_df['assignee'].dropna().unique().tolist())
+            
+            # Calculate top assignees based on open issues
+            top_assignees = []
+            try:
+                assignee_workload = data_processor.get_assignee_workload()
+                if not assignee_workload.empty:
+                    top_assignees = assignee_workload.nlargest(3, 'open_issues')['assignee'].tolist()
+            except Exception as e:
+                st.warning(f"Could not determine top assignees: {e}")
+                
+            selected_assignees = st.multiselect("Assignees", assignees, default=top_assignees) # Pre-select top assignees
         
         with col2:
             # Filter by status (from custom fields)
@@ -62,8 +73,9 @@ with tab1:
         # Apply filters
         filtered_df = data_processor.issues_df.copy()
         
-        if selected_assignee != 'All':
-            filtered_df = filtered_df[filtered_df['assignee'] == selected_assignee]
+        # Updated assignee filter logic for multiselect
+        if selected_assignees: # Check if the list is not empty
+            filtered_df = filtered_df[filtered_df['assignee'].isin(selected_assignees)]
         
         if selected_status != 'All':
             # Get issues with the selected status
@@ -141,8 +153,13 @@ with tab3:
         
         with col2:
             # Filter by author
-            authors = ['All'] + sorted(data_processor.comments_df['author'].unique().tolist())
-            selected_author = st.selectbox("Author", authors)
+            st.subheader("Filter by Comment Author")
+            if data_processor.comments_df is not None and not data_processor.comments_df.empty and 'author_name' in data_processor.comments_df.columns:
+                authors = ['All'] + sorted(data_processor.comments_df['author_name'].unique().tolist())
+                selected_author = st.selectbox("Select Author", authors)
+            else:
+                st.warning("Comment author data is not available or missing 'author_name' column.")
+                selected_author = 'All'
         
         with col3:
             # Filter by date range
@@ -160,8 +177,8 @@ with tab3:
         if issue_id:
             filtered_df = filtered_df[filtered_df['issue_id'] == issue_id]
         
-        if selected_author != 'All':
-            filtered_df = filtered_df[filtered_df['author'] == selected_author]
+        if selected_author != 'All' and 'author_name' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['author_name'] == selected_author]
         
         if len(date_range) == 2:
             start_date, end_date = date_range

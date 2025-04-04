@@ -8,7 +8,7 @@ import pandas as pd
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 
-from config import app_config
+from config import app_config, youtrack_config
 
 # Configure logging
 logging.basicConfig(
@@ -20,78 +20,353 @@ logger = logging.getLogger(__name__)
 class DataProcessor:
     """Process and analyze YouTrack issue data."""
     
-    def __init__(self, raw_data_path: Optional[str] = None):
-        """Initialize with path to raw data."""
-        if raw_data_path is None:
-            raw_data_path = os.path.join(app_config.data_dir, app_config.issues_file)
+    def __init__(self, raw_data_dict: Optional[Dict[str, Any]] = None, raw_data_path: str = "data/raw_youtrack_data.json"):
+        """Initialize the DataProcessor.
+
+        Args:
+            raw_data_dict: Optional dictionary containing the raw data fetched from the API.
+                           If provided, this data is used directly.
+            raw_data_path: Path to the raw JSON data file. Used if raw_data_dict is not provided.
+        """
         self.raw_data_path = raw_data_path
-        self.raw_data = None
-        self.issues_df = None
-        self.history_df = None
-        self.comments_df = None
-        self.sprint_df = None
-        self.custom_fields_df = None
+        self.raw_data: Optional[Dict[str, Any]] = raw_data_dict
+        self.processed_data_path = os.path.join(app_config.data_dir, app_config.processed_data_file)
+        self.issues_df: Optional[pd.DataFrame] = None
+        self.custom_fields_df: Optional[pd.DataFrame] = None
+        self.comments_df: Optional[pd.DataFrame] = None
+        self.activities_raw: List[Dict[str, Any]] = []
+        self.recent_activity_df: Optional[pd.DataFrame] = None
+        self.sprint_df: Optional[pd.DataFrame] = None
+        self.custom_field_values: Optional[Dict[str, List[Dict[str, Any]]]] = None
+        self.metrics_24h: Dict[str, int] = {}
+        self.metrics_overall: Dict[str, Any] = {}
         
-    def load_data(self) -> bool:
-        """Load raw data from file."""
+        if self.raw_data:
+            logger.info("DataProcessor initialized with provided raw data dictionary.")
+            self.activities_raw = self.raw_data.get('activities', [])
+            self.custom_field_values = self.raw_data.get('custom_field_values', {})
+        else:
+            logger.info(f"DataProcessor initialized. Will attempt to load raw data from {self.raw_data_path}")
+            self.load_raw_data()
+        
+    def load_raw_data(self):
+        """Loads the raw data from the specified JSON file."""
+        if not os.path.exists(self.raw_data_path):
+            logger.error(f"Raw data file not found: {self.raw_data_path}")
+            self.raw_data = None
+            return
         try:
-            if not os.path.exists(self.raw_data_path):
-                logger.warning(f"Raw data file not found: {self.raw_data_path}")
-                return False
-                
             with open(self.raw_data_path, 'r') as f:
                 self.raw_data = json.load(f)
-                
             logger.info(f"Successfully loaded raw data from {self.raw_data_path}")
-            return True
+            if self.raw_data:
+                self.activities_raw = self.raw_data.get('activities', [])
+                self.custom_field_values = self.raw_data.get('custom_field_values', {})
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding JSON from {self.raw_data_path}: {e}")
+            self.raw_data = None
         except Exception as e:
-            logger.error(f"Error loading raw data: {str(e)}", exc_info=True)
-            return False
+            logger.error(f"Error reading raw data file {self.raw_data_path}: {e}")
+            self.raw_data = None
     
-    def _extract_custom_fields(self, issues: List[Dict[str, Any]]) -> pd.DataFrame:
-        """Extract custom fields from issues into a separate dataframe."""
-        custom_fields_data = []
-        
-        for issue in issues:
-            issue_id = issue.get('id')
-            readable_id = issue.get('idReadable', '')  # Add support for readable ID from REST API
+    def _create_issues_dataframe(self, issues: List[Dict[str, Any]]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Creates the main issues dataframe and the custom fields dataframe."""
+        if not issues:
+            logger.warning("No issues provided to _create_issues_dataframe.")
+            return pd.DataFrame(), pd.DataFrame()
             
-            for field in issue.get('customFields', []):
-                field_name = field.get('name', '')
-                field_id = field.get('id', '')
-                
-                # Extract value based on field type
-                if 'value' in field:
-                    value = field['value']
-                    if isinstance(value, dict):
-                        # For the latest REST API, try more fields
-                        field_value = value.get('name', 
-                                              value.get('text', 
-                                                      value.get('localizedName',
-                                                               value.get('presentation', ''))))
-                    elif isinstance(value, list):
-                        # Handle multi-value fields
-                        field_value = [v.get('name', 
-                                          v.get('text', 
-                                               v.get('localizedName',
-                                                    v.get('presentation', '')))) 
-                                    for v in value if isinstance(v, dict)]
-                        field_value = ", ".join(field_value) if field_value else ""
-                    else:
-                        field_value = str(value)
+        issues_data = []
+        custom_fields_data = []
+
+        for issue in issues:
+            # Base issue details
+            base_details = {
+                "id": issue.get("id"),
+                "idReadable": issue.get("idReadable"),
+                "summary": issue.get("summary", "").strip(),
+                "description": issue.get("description", "").strip() if issue.get("description") else None,
+                "created": pd.to_datetime(issue.get("created"), unit='ms', errors='coerce'),
+                "updated": pd.to_datetime(issue.get("updated"), unit='ms', errors='coerce'),
+                "resolved": pd.to_datetime(issue.get("resolved"), unit='ms', errors='coerce')
+            }
+
+            # Extract custom fields and find Assignee specifically
+            assignee_name = "Unassigned" # Default
+            if issue.get("customFields"): # Check if customFields exists and is not None
+                for field in issue["customFields"]:
+                    if not field: # Skip if field is None
+                        continue
+
+                    # --- CORRECTED Field Name Extraction --- #
+                    # The 'name' seems to be directly in the field object based on grep results
+                    field_name = field.get("name")
+                    # --- End Correction ---
+
+                    field_value = field.get("value")
+                    value_type = field.get("$type") # Get the type of the value
+
+                    if field_name:
+                        # Store all custom fields for potential later use/merging
+                        cf_entry = {
+                            "issue_id": base_details["id"],
+                            "field_name": field_name,
+                            "value": None, # Initialize
+                            "value_type": value_type
+                        }
+
+                        # Extract value based on type
+                        if isinstance(field_value, dict):
+                            # Handle User, StateBundleElement, EnumBundleElement, etc.
+                            cf_entry["value_id"] = field_value.get("id")
+                            cf_entry["value_name"] = field_value.get("name") or field_value.get("login") # Use name or login
+                            cf_entry["value"] = cf_entry["value_name"] # Simplified value
+                        elif isinstance(field_value, list):
+                             # Handle multi-value fields (e.g., multiple assignees, tags)
+                             # For simplicity, join names or logins if available, otherwise store the list
+                             names = [v.get("name") or v.get("login") for v in field_value if isinstance(v, dict) and (v.get("name") or v.get("login"))]
+                             if names:
+                                 cf_entry["value"] = ", ".join(names)
+                             else:
+                                 cf_entry["value"] = str(field_value) # Fallback to string representation
+                        else:
+                            # Handle simple values (string, number, date)
+                            cf_entry["value"] = field_value
+
+                        # --- DEBUG LOG --- #
+                        logger.debug(f"Issue {base_details['idReadable']}: Found CF '{field_name}' = '{cf_entry['value']}' (Raw Value: {field_value})")
+                        # --- END DEBUG LOG ---
+
+                        custom_fields_data.append(cf_entry)
+
+                        # --- Specific Assignee Handling ---
+                        # Check for the CORRECT field name (plural)
+                        if field_name == "Assignees": 
+                            # --- DEBUG LOG (Re-enabled) --- #
+                            logger.debug(f"Issue {base_details['idReadable']}: Processing Assignees field. Raw Value: {field_value}")
+                            # --- END DEBUG LOG ---
+                            if isinstance(field_value, dict):
+                                # Single assignee (User type)
+                                login_name = field_value.get("login") or field_value.get("name") # Prefer login, fallback to name
+                                if login_name:
+                                    assignee_name = login_name
+                                    logger.debug(f"Issue {base_details['idReadable']}: Assignee set to '{assignee_name}' (from dict)") # DEBUG
+                            elif isinstance(field_value, list) and field_value:
+                                # Multiple assignees (potentially)
+                                logins = [u.get("login") or u.get("name") for u in field_value if isinstance(u, dict) and (u.get("login") or u.get("name"))]
+                                if logins:
+                                     assignee_name = ", ".join(logins)
+                                     logger.debug(f"Issue {base_details['idReadable']}: Assignee set to '{assignee_name}' (from list)") # DEBUG
+                                # If list is empty or contains non-dict items, default remains Unassigned
+                            # If field_value is None or not dict/list, default remains Unassigned
+                            else:
+                                logger.debug(f"Issue {base_details['idReadable']}: Assignee value is None or not dict/list. Keeping Unassigned.") # DEBUG
+
+            # Add Assignee to base details
+            base_details["Assignees"] = assignee_name # Changed field name to plural for consistency
+            issues_data.append(base_details)
+
+        issues_df = pd.DataFrame(issues_data)
+        custom_fields_df = pd.DataFrame(custom_fields_data)
+
+        # --- DEBUG LOG: Check columns after initial DF creation ---
+        logger.debug(f"Initial issues_df columns: {issues_df.columns.tolist()}")
+        # --- END DEBUG LOG ---
+
+        # Convert timestamp columns
+        for col in ['created', 'updated', 'resolved']:
+            if col in issues_df.columns:
+                issues_df[col] = pd.to_datetime(issues_df[col], unit='ms', errors='coerce')
+
+        # Merge essential custom fields (State, Priority) into issues_df
+        essential_fields_to_merge = ['State', 'Priority'] # Add others if needed
+        for field_name in essential_fields_to_merge:
+            if not custom_fields_df.empty:
+                field_df = custom_fields_df[custom_fields_df['field_name'] == field_name][['issue_id', 'value']].rename(columns={'value': field_name})
+                # Handle potential duplicate issue_id entries if a field somehow appears twice (take first)
+                field_df = field_df.drop_duplicates(subset='issue_id', keep='first') 
+                if not field_df.empty:
+                    # Use 'id' from issues_df which matches 'issue_id' from custom_fields_df perspective
+                    issues_df = pd.merge(issues_df, field_df, left_on='id', right_on='issue_id', how='left')
+                    # Drop the redundant issue_id column from the merge
+                    if 'issue_id' in issues_df.columns:
+                         issues_df.drop(columns=['issue_id'], inplace=True)
+                    logger.info(f"Merged '{field_name}' into issues_df.")
                 else:
-                    field_value = ""
-                
-                custom_fields_data.append({
-                    'issue_id': issue_id,
-                    'issue_readable_id': readable_id,  # Add readable ID for better reference
-                    'field_id': field_id,
-                    'field_name': field_name,
-                    'field_value': field_value
-                })
+                    logger.warning(f"No data found for essential custom field '{field_name}' to merge.")
+                    issues_df[field_name] = None # Add column with None if field doesn't exist
+            else:
+                 logger.warning(f"Custom fields dataframe is empty, cannot merge '{field_name}'.")
+                 issues_df[field_name] = None
+                 
+        # Add readable ID column if not present (should be now)
+        if 'idReadable' not in issues_df.columns and 'issue_readable_id' in custom_fields_df.columns:
+             readable_ids = custom_fields_df[['issue_id', 'issue_readable_id']].drop_duplicates(subset='issue_id')
+             issues_df = pd.merge(issues_df, readable_ids, on='issue_id', how='left')
+             
+        # Rename for consistency
+        if 'idReadable' not in issues_df.columns and 'issue_readable_id' in issues_df.columns:
+            issues_df = issues_df.rename(columns={'issue_readable_id': 'idReadable'})
+
+        # Basic validation
+        required_cols = ['id', 'idReadable', 'summary', 'created']
+        missing_cols = [col for col in required_cols if col not in issues_df.columns]
+        if missing_cols:
+            logger.warning(f"Issues DataFrame is missing critical columns: {missing_cols}")
+
+        return issues_df, custom_fields_df
+
+    def _calculate_overall_metrics(self):
+        """Calculates overall metrics like stale count and assignee workload from the issues_df."""
+        if self.issues_df is None or self.issues_df.empty:
+            logger.warning("Issues DataFrame is empty, cannot calculate overall metrics.")
+            self.metrics_overall = {'stale_30d_count': 0, 'assignee_workload': {}}
+            return
+            
+        # --- Stale Count --- 
+        stale_count = 0
+        if 'resolved' in self.issues_df.columns and 'created' in self.issues_df.columns:
+            open_issues = self.issues_df[self.issues_df['resolved'].isna()].copy()
+            if 'created' in open_issues.columns and pd.api.types.is_datetime64_any_dtype(open_issues['created']):
+                 thirty_days_ago = datetime.now() - timedelta(days=30)
+                 # Ensure compatible comparison (naive vs naive)
+                 # Assuming 'created' is naive timezone, convert thirty_days_ago to naive
+                 stale_issues = open_issues[open_issues['created'] < thirty_days_ago.replace(tzinfo=None)]
+                 stale_count = len(stale_issues)
+            else:
+                 logger.warning("Cannot calculate stale count: 'created' column missing or not datetime.")
+        else:
+             logger.warning("Cannot calculate stale count: 'resolved' or 'created' columns missing.")
         
-        return pd.DataFrame(custom_fields_data)
-    
+        # --- Assignee Workload --- 
+        assignee_workload = {}
+        if 'Assignees' in self.issues_df.columns and 'resolved' in self.issues_df.columns:
+            open_issues = self.issues_df[self.issues_df['resolved'].isna()]
+            # Use 'Unassigned' as the fill value consistently
+            assignee_counts = open_issues['Assignees'].fillna('Unassigned').value_counts()
+            assignee_workload = assignee_counts.to_dict()
+            # No need to check for 'None' separately if 'Unassigned' is used consistently
+        else:
+             logger.warning("Cannot calculate assignee workload: 'Assignees' or 'resolved' columns missing.")
+             
+        self.metrics_overall = {
+            'stale_30d_count': stale_count,
+            'assignee_workload': assignee_workload
+        }
+        logger.info(f"Calculated overall metrics: Stale(>30d)={stale_count}, Workload Summary={assignee_workload}")
+
+    def _process_activities(self):
+        """Processes raw activities to calculate 24h metrics and create a recent activity DataFrame."""
+        if not self.activities_raw:
+            logger.warning("No raw activities found to process.")
+            self.metrics_24h = {'created': 0, 'resolved': 0, 'new_blockers': 0, 'new_critical': 0}
+            self.recent_activity_df = pd.DataFrame()
+            return
+
+        processed_activities = []
+        created_24h = 0
+        resolved_24h = 0
+        new_blockers_24h = 0
+        new_critical_24h = 0
+
+        now = datetime.now()
+        cutoff_time_24h = now - timedelta(hours=24)
+        cutoff_timestamp_ms = int(cutoff_time_24h.timestamp() * 1000)
+
+        # Get list of resolved state names
+        resolved_state_names = []
+        if self.custom_field_values and 'State' in self.custom_field_values:
+             # Assuming State values have 'name' and potentially 'isResolved' flag, 
+             # or rely on common names if flag unavailable
+             common_resolved_names = ['Done', 'Resolved', 'Verified', 'Closed', 'Obsolete', 'Duplicate']
+             resolved_state_names = [v.get('name') for v in self.custom_field_values['State'] 
+                                     if v.get('name') in common_resolved_names] # Or use an isResolved flag if available
+        if not resolved_state_names:
+             logger.warning("Could not determine resolved state names from custom field values. Using defaults.")
+             resolved_state_names = ['Done', 'Resolved', 'Verified', 'Closed', 'Obsolete', 'Duplicate']
+        logger.info(f"Identified resolved states: {resolved_state_names}")
+
+        # Define Blocker/Critical criteria
+        blocker_priority_name = 'Critical' 
+        blocker_state_name = 'Blocked' 
+        critical_priority_name = 'Critical' # Can be same as blocker or different
+
+        for activity in self.activities_raw:
+            timestamp_ms = activity.get('timestamp')
+            if not timestamp_ms:
+                continue
+
+            # Basic processing for DataFrame
+            category = activity.get('category', {}).get('id', '')
+            author = activity.get('author', {}).get('name', activity.get('author', {}).get('login', 'N/A'))
+            target = activity.get('target', {})
+            issue_id = target.get('id') if target.get('$type') == 'Issue' else None
+            issue_readable_id = target.get('idReadable') if issue_id else None
+            field = activity.get('field', {})
+            field_name = field.get('name')
+            added_obj = activity.get('added')
+            removed_obj = activity.get('removed')
+            
+            # Simplify added/removed for logging/df
+            def simplify_value(value_obj):
+                if isinstance(value_obj, dict): return value_obj.get('name', value_obj.get('text', value_obj.get('presentation', str(value_obj))))
+                if isinstance(value_obj, list): return ", ".join([simplify_value(v) for v in value_obj])
+                return str(value_obj) if value_obj is not None else None
+                
+            added_simple = simplify_value(added_obj)
+            removed_simple = simplify_value(removed_obj)
+
+            processed_activities.append({
+                'activity_id': activity.get('id'),
+                'timestamp_ms': timestamp_ms,
+                'category': category,
+                'author': author,
+                'issue_id': issue_id,
+                'issue_readable_id': issue_readable_id,
+                'field_name': field_name,
+                'added_value': added_simple,
+                'removed_value': removed_simple
+            })
+
+            # --- Calculate 24h Metrics --- 
+            if timestamp_ms >= cutoff_timestamp_ms:
+                if category == 'IssueCreatedCategory':
+                    created_24h += 1
+                elif category == 'CustomFieldCategory' and field_name == 'State':
+                    added_state = added_simple
+                    removed_state = removed_simple
+                    # Check if it moved TO a resolved state FROM a non-resolved state
+                    if added_state in resolved_state_names and (removed_state is None or removed_state not in resolved_state_names):
+                        resolved_24h += 1
+                    # Check if it moved TO a blocker state FROM non-blocker
+                    if added_state == blocker_state_name and (removed_state is None or removed_state != blocker_state_name):
+                         new_blockers_24h += 1
+                         
+                elif category == 'CustomFieldCategory' and field_name == 'Priority':
+                     added_priority = added_simple
+                     removed_priority = removed_simple
+                     # Check if priority was changed TO blocker priority FROM non-blocker
+                     if added_priority == blocker_priority_name and (removed_priority is None or removed_priority != blocker_priority_name):
+                          new_blockers_24h += 1 
+                     # Check if priority was changed TO CRITICAL priority FROM non-critical
+                     if added_priority == critical_priority_name and (removed_priority is None or removed_priority != critical_priority_name):
+                          new_critical_24h += 1 # Track newly critical
+
+        self.metrics_24h = {
+            'created': created_24h,
+            'resolved': resolved_24h,
+            'new_blockers': new_blockers_24h,
+            'new_critical': new_critical_24h
+        }
+        logger.info(f"Calculated 24h metrics: {self.metrics_24h}")
+
+        # Create DataFrame from processed activities
+        self.recent_activity_df = pd.DataFrame(processed_activities)
+        if not self.recent_activity_df.empty:
+             self.recent_activity_df['timestamp'] = pd.to_datetime(self.recent_activity_df['timestamp_ms'], unit='ms', errors='coerce')
+             logger.info(f"Created recent_activity_df with {len(self.recent_activity_df)} entries.")
+        else:
+             logger.info("No activities processed, recent_activity_df is empty.")
+
     def _extract_comments(self, issues: List[Dict[str, Any]]) -> pd.DataFrame:
         """Extract comments from issues into a separate dataframe with enhanced fields from REST API."""
         comments_data = []
@@ -233,160 +508,129 @@ class DataProcessor:
         return pd.DataFrame(sprint_data)
     
     def process_data(self) -> bool:
-        """Process raw data into structured dataframes."""
-        try:
-            if self.raw_data is None and not self.load_data():
-                return False
-            
-            # Extract issues from the raw data (handling case where raw_data might be None)
-            if self.raw_data is None:
-                logger.error("Raw data is None. Unable to process data.")
-                return False
-                
-            issues = self.raw_data.get('issues', [])
-            issue_histories = self.raw_data.get('issue_histories', {})
-            
-            # Create issues dataframe with additional fields from latest REST API
-            issues_data = []
-            for issue in issues:
-                assignee = issue.get('assignee', {})
-                assignee_name = assignee.get('name', assignee.get('login', '')) if assignee else ''
-                
-                # Extract reporter info
-                reporter = issue.get('reporter', {})
-                reporter_name = reporter.get('name', reporter.get('login', '')) if reporter else ''
-                
-                # Extract project info
-                project = issue.get('project', {})
-                project_name = project.get('name', '') if project else ''
-                project_short_name = project.get('shortName', '') if project else ''
-                
-                # Extract time tracking data if available
-                time_tracking = issue.get('timeTracking', {})
-                work_items = time_tracking.get('workItems', []) if time_tracking else []
-                total_time_spent = sum(item.get('duration', 0) for item in work_items) if work_items else 0
-                
-                # Extract link counts
-                links = issue.get('links', [])
-                subtasks = issue.get('subtasks', [])
-                parent = issue.get('parent', {})
-                has_parent = bool(parent.get('id', '')) if parent else False
-                
-                issues_data.append({
-                    'id': issue.get('id', ''),
-                    'readable_id': issue.get('idReadable', ''),  # New field from REST API
-                    'summary': issue.get('summary', ''),
-                    'description': issue.get('description', ''),
-                    'created': issue.get('created', ''),
-                    'updated': issue.get('updated', ''),
-                    'resolved': issue.get('resolved', ''),
-                    'assignee': assignee_name,
-                    'reporter': reporter_name,
-                    'project_name': project_name,
-                    'project_short_name': project_short_name,
-                    'tags': ', '.join([tag.get('name', '') for tag in issue.get('tags', [])]),
-                    'time_spent': total_time_spent,
-                    'link_count': len(links),
-                    'subtask_count': len(subtasks),
-                    'has_parent': has_parent
-                })
-            
-            self.issues_df = pd.DataFrame(issues_data)
-            
-            # Process other data
-            self.custom_fields_df = self._extract_custom_fields(issues)
-            self.comments_df = self._extract_comments(issues)
-            self.history_df = self._process_issue_history(issue_histories)
-            self.sprint_df = self._extract_sprint_data(issues)
-            
-            # Convert timestamp strings to datetime objects
-            for df in [self.issues_df, self.comments_df, self.history_df]:
-                for col in df.columns:
-                    if 'created' in col or 'updated' in col or 'resolved' in col or 'timestamp' in col:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
-            
-            # Save processed data
-            self._save_processed_data()
-            
-            logger.info("Successfully processed raw data into structured dataframes")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error processing data: {str(e)}", exc_info=True)
+        """Process raw data into structured dataframes and calculate metrics."""
+        if not self.raw_data:
+            logger.error("No raw data loaded. Cannot process.")
             return False
-    
-    def _save_processed_data(self) -> None:
-        """Save processed dataframes to a file."""
-        # Define a custom JSON serializer for pandas Timestamp objects
-        def json_serial(obj):
-            """JSON serializer for objects not serializable by default json code"""
-            if isinstance(obj, (pd.Timestamp, datetime)):
-                return obj.isoformat()
-            raise TypeError(f"Type {type(obj)} not serializable")
         
-        processed_data = {
+        issues = self.raw_data.get('issues', [])
+        # issue_histories = self.raw_data.get('issue_histories', {}) # Deprecated by activities
+        sprints_data = self.raw_data.get('sprints', []) # If fetched separately
+
+        try:
+            # 1. Create Issues and Custom Fields DataFrames
+            logger.info("Creating Issues and Custom Fields DataFrames...")
+            self.issues_df, self.custom_fields_df = self._create_issues_dataframe(issues)
+            if self.issues_df.empty:
+                 logger.error("Issues DataFrame creation failed or resulted in empty data.")
+                 return False
+            logger.info(f"Issues DataFrame created with {len(self.issues_df)} rows.")
+            if not self.custom_fields_df.empty:
+                 logger.info(f"Custom Fields DataFrame created with {len(self.custom_fields_df)} rows.")
+            else: 
+                 logger.warning("Custom Fields DataFrame is empty.")
+
+            # 2. Extract Comments
+            logger.info("Extracting Comments...")
+            self.comments_df = self._extract_comments(issues)
+            if not self.comments_df.empty:
+                logger.info(f"Comments DataFrame created with {len(self.comments_df)} rows.")
+            else:
+                 logger.info("No comments found or extracted.")
+
+            # 3. Process Activities (Calculates 24h metrics)
+            logger.info("Processing Activities...")
+            self._process_activities()
+
+            # 4. Calculate Overall Metrics (Stale count, workload)
+            logger.info("Calculating Overall Metrics...")
+            self._calculate_overall_metrics()
+
+            # 5. Extract Sprint Data
+            logger.info("Extracting Sprint Data...")
+            # Use issues data, but also ensure sprints from raw_data root are included
+            self.sprint_df = self._extract_sprint_data(issues)
+            if not self.sprint_df.empty:
+                logger.info(f"Sprint DataFrame created with {len(self.sprint_df)} rows.")
+            else:
+                 logger.info("No sprint data found or extracted.")
+
+            # 6. Data Cleaning and Type Conversion (consolidated)
+            logger.info("Performing final data cleaning and type conversions...")
+            self._clean_and_convert_types()
+            
+            # 7. Save Processed Data
+            self._save_processed_data()
+            return True
+
+        except Exception as e:
+            logger.error(f"An error occurred during data processing: {e}", exc_info=True)
+            return False
+            
+    def _clean_and_convert_types(self):
+         """Centralized function for cleaning data and converting types across dataframes."""
+         logger.info("Cleaning data and converting types...")
+         # Issues DF (timestamps already handled in _create_issues_dataframe)
+         # Convert relevant columns to numeric if applicable (use errors='coerce')
+         
+         # Comments DF
+         if self.comments_df is not None and not self.comments_df.empty:
+             if 'created' in self.comments_df.columns:
+                 self.comments_df['created'] = pd.to_datetime(self.comments_df['created'], unit='ms', errors='coerce')
+                 
+         # Recent Activity DF
+         if self.recent_activity_df is not None and not self.recent_activity_df.empty:
+             # Timestamp handled in _process_activities
+             pass # Add other conversions if needed
+             
+         # Sprint DF
+         if self.sprint_df is not None and not self.sprint_df.empty:
+             for col in ['sprint_start', 'sprint_finish']:
+                 if col in self.sprint_df.columns:
+                     self.sprint_df[col] = pd.to_datetime(self.sprint_df[col], unit='ms', errors='coerce')
+         logger.info("Data cleaning and type conversion complete.")
+
+    def _save_processed_data(self):
+        """Saves the processed dataframes to a JSON file."""
+        # ... (ensure directory exists) ...
+        processed_output = {
             'issues': self.issues_df.to_dict(orient='records') if self.issues_df is not None else [],
             'custom_fields': self.custom_fields_df.to_dict(orient='records') if self.custom_fields_df is not None else [],
             'comments': self.comments_df.to_dict(orient='records') if self.comments_df is not None else [],
-            'history': self.history_df.to_dict(orient='records') if self.history_df is not None else [],
             'sprints': self.sprint_df.to_dict(orient='records') if self.sprint_df is not None else [],
-            'processed_timestamp': datetime.now().isoformat()
+            'recent_activities': self.recent_activity_df.to_dict(orient='records') if self.recent_activity_df is not None else [], # Add activities
+            'metrics_24h': self.metrics_24h, # Add metrics
+            'metrics_overall': self.metrics_overall, # Add overall metrics
+            'custom_field_definitions': self.custom_field_values, # Add definitions
+            'processing_timestamp': datetime.now().isoformat()
         }
         
-        output_path = os.path.join(app_config.data_dir, app_config.processed_data_file)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w') as f:
-            json.dump(processed_data, f, default=json_serial)
-        
-        logger.info(f"Saved processed data to {output_path}")
-    
-    def load_processed_data(self) -> bool:
-        """Load previously processed data."""
         try:
-            processed_data_path = os.path.join(app_config.data_dir, app_config.processed_data_file)
-            
-            if not os.path.exists(processed_data_path):
-                logger.warning(f"Processed data file not found: {processed_data_path}")
-                return False
-            
-            with open(processed_data_path, 'r') as f:
-                processed_data = json.load(f)
-            
-            self.issues_df = pd.DataFrame(processed_data.get('issues', []))
-            self.custom_fields_df = pd.DataFrame(processed_data.get('custom_fields', []))
-            self.comments_df = pd.DataFrame(processed_data.get('comments', []))
-            self.history_df = pd.DataFrame(processed_data.get('history', []))
-            self.sprint_df = pd.DataFrame(processed_data.get('sprints', []))
-            
-            # Convert timestamp strings to datetime objects
-            for df in [self.issues_df, self.comments_df, self.history_df]:
-                for col in df.columns:
-                    if 'created' in col or 'updated' in col or 'resolved' in col or 'timestamp' in col:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
-            
-            logger.info(f"Successfully loaded processed data from {processed_data_path}")
-            return True
-        
+            # --- Add Log Before --- #
+            logger.info(f"Attempting to save processed data to {self.processed_data_path}")
+            with open(self.processed_data_path, 'w', encoding='utf-8') as f:
+                json.dump(processed_output, f, indent=2, default=str, ensure_ascii=False) # Use default=str for datetime, ensure_ascii=False for unicode
+            # --- Add Log After --- #
+            logger.info(f"Successfully completed writing processed data to {self.processed_data_path}")
         except Exception as e:
-            logger.error(f"Error loading processed data: {str(e)}", exc_info=True)
-            return False
-    
+            logger.error(f"Error saving processed data to {self.processed_data_path}: {e}", exc_info=True)
+
     def get_status_transitions(self) -> pd.DataFrame:
         """Get status transitions from history data."""
-        if self.history_df is None or self.history_df.empty:
-            logger.warning("History data not available. Call process_data() first.")
+        if self.recent_activity_df is None or self.recent_activity_df.empty:
+            logger.warning("Recent activity data not available. Call process_data() first.")
             return pd.DataFrame()
             
         # Check if the required column exists
-        if 'field_name' not in self.history_df.columns:
-            logger.warning("field_name column not found in history data. Creating empty dataframe.")
+        if 'field_name' not in self.recent_activity_df.columns:
+            logger.warning("field_name column not found in recent activity data. Creating empty dataframe.")
             # Create an empty dataframe with the expected columns
             return pd.DataFrame(columns=['issue_id', 'activity_id', 'timestamp', 
                                         'author', 'field_name', 'field_type', 
-                                        'category', 'added', 'removed', 'summary'])
+                                        'category', 'added_value', 'removed_value'])
         
         # Filter for 'State' field changes
-        status_changes = self.history_df[self.history_df['field_name'] == 'State'].copy()
+        status_changes = self.recent_activity_df[self.recent_activity_df['field_name'] == 'State'].copy()
         
         # Add issue summary for better context
         if self.issues_df is not None and not self.issues_df.empty:
@@ -403,20 +647,20 @@ class DataProcessor:
     
     def get_assignee_changes(self) -> pd.DataFrame:
         """Get assignee changes from history data."""
-        if self.history_df is None or self.history_df.empty:
-            logger.warning("History data not available. Call process_data() first.")
+        if self.recent_activity_df is None or self.recent_activity_df.empty:
+            logger.warning("Recent activity data not available. Call process_data() first.")
             return pd.DataFrame()
             
         # Check if the required column exists
-        if 'field_name' not in self.history_df.columns:
-            logger.warning("field_name column not found in history data. Creating empty dataframe.")
+        if 'field_name' not in self.recent_activity_df.columns:
+            logger.warning("field_name column not found in recent activity data. Creating empty dataframe.")
             # Create an empty dataframe with the expected columns
             return pd.DataFrame(columns=['issue_id', 'activity_id', 'timestamp', 
                                         'author', 'field_name', 'field_type', 
-                                        'category', 'added', 'removed', 'summary'])
+                                        'category', 'added_value', 'removed_value'])
         
         # Filter for 'Assignee' field changes
-        assignee_changes = self.history_df[self.history_df['field_name'] == 'Assignee'].copy()
+        assignee_changes = self.recent_activity_df[self.recent_activity_df['field_name'] == 'Assignee'].copy()
         
         # Add issue summary for better context
         if self.issues_df is not None and not self.issues_df.empty:

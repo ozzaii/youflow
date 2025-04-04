@@ -70,7 +70,52 @@ log_level = st.selectbox(
     index=1  # Default to INFO
 )
 
-# Data Management
+# --- Email Report Recipients ---
+st.header("Email Report Recipients")
+
+RECIPIENTS_FILE = "recipients.txt"
+
+def load_recipients_text():
+    """Loads the raw text content of the recipients file."""
+    try:
+        if os.path.exists(RECIPIENTS_FILE):
+            with open(RECIPIENTS_FILE, 'r') as f:
+                return f.read()
+        else:
+            # Create the file with a placeholder if it doesn't exist
+            placeholder_content = "# Add recipient email addresses below, one per line.\nplaceholder@example.com\n"
+            with open(RECIPIENTS_FILE, 'w') as f:
+                f.write(placeholder_content)
+            return placeholder_content
+    except Exception as e:
+        st.error(f"Error loading recipients file: {e}")
+        return "# Error loading recipients file."
+
+def save_recipients_text(content):
+    """Saves the text content back to the recipients file."""
+    try:
+        with open(RECIPIENTS_FILE, 'w') as f:
+            f.write(content)
+        return True
+    except Exception as e:
+        st.error(f"Error saving recipients file: {e}")
+        return False
+
+# Load current recipients into the text area
+current_recipients_text = load_recipients_text()
+recipients_input = st.text_area(
+    "Recipients (one email per line, lines starting with # are ignored)",
+    value=current_recipients_text,
+    height=150
+)
+
+if st.button("Save Recipients"):
+    if save_recipients_text(recipients_input):
+        st.success("Recipients list saved successfully!")
+        # Optionally clear cache or rerun if needed, but text_area should update visually
+        st.rerun() # Rerun to reload the text area with saved content cleanly
+
+# --- Data Management ---
 st.header("Data Management")
 
 # Display data freshness
